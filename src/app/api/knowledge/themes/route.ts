@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 
@@ -18,7 +18,7 @@ export async function GET() {
   }
 
   const schoolSlug = await getCurrentSchoolSlugChecked();
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
   const { data, error } = await sb
     .from("knowledge_themes")
     .select("id, name, created_at")
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
   }
 
   const schoolSlug = await getCurrentSchoolSlugChecked();
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
   const { data, error } = await sb
     .from("knowledge_themes")
     .insert({ school_slug: schoolSlug, name: parsed.data.name })

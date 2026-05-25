@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 import { getSchoolBySlug, isEdhScope, EDH_SCHOOL_SLUGS } from "@/lib/schools";
@@ -36,7 +36,7 @@ export async function GET(req: Request) {
   }
 
   const schoolSlug = await getCurrentSchoolSlugChecked();
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
   const isEdh = isEdhScope(schoolSlug);
 
   // En mode EDH, on remonte les URLs des 9 écoles EDH. Filtre IN obligatoire

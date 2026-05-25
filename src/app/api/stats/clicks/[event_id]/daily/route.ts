@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 import { getClicksDaily } from "@/lib/stats/daily";
@@ -33,7 +33,7 @@ export async function GET(
   // En mode école-précise, l'event doit appartenir à cette école. En mode
   // EDH groupe, l'event doit appartenir à l'une des 9 écoles EDH (filtre
   // explicite car la DB est partagée avec d'autres projets).
-  const { data: ev } = await getSupabase()
+  const { data: ev } = await getSupabaseScoped(scope)
     .from("redirect_events")
     .select("school_slug")
     .eq("id", event_id)

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 import { getVectorStoreFileStatus } from "@/lib/openai-kb";
@@ -51,7 +51,7 @@ export async function GET(req: Request) {
 
   const { q, type, themeId, page, limit } = parsed.data;
   const schoolSlug = await getCurrentSchoolSlugChecked();
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
   const offset = (page - 1) * limit;
 
   let listQ = sb

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabase, getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 import type { CampaignListItem } from "@/lib/campaigns/types";
@@ -39,7 +39,8 @@ export async function GET() {
   }
 
   const schoolSlug = await getCurrentSchoolSlugChecked();
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
+  const sbRaw = getSupabase();
 
   // Accessibles = mes campagnes + celles partagées par d'autres dans la
   // même école. PostgREST `or()` accepte une liste séparée par virgule.
@@ -55,7 +56,7 @@ export async function GET() {
 
   // can_edit : owner ou admin. On lit is_admin une fois pour annoter chaque
   // ligne (pas d'admin → can_edit = created_by === me uniquement).
-  const { data: meRow } = await sb
+  const { data: meRow } = await sbRaw
     .from("users")
     .select("is_admin")
     .eq("id", user.userId)
@@ -86,7 +87,7 @@ export async function POST(req: Request) {
   }
 
   const schoolSlug = await getCurrentSchoolSlugChecked();
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
   const { data, error } = await sb
     .from("campaigns")
     .insert({

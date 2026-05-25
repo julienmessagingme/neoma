@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabase, getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 
@@ -48,8 +48,9 @@ export async function PATCH(
     );
   }
 
-  const sb = getSupabase();
   const schoolSlug = await getCurrentSchoolSlugChecked();
+  const sb = getSupabaseScoped(schoolSlug);
+  const sbRaw = getSupabase();
 
   // Vérifie ownership / accès en édition (owner ou admin).
   const { data: campaign } = await sb
@@ -64,7 +65,7 @@ export async function PATCH(
     campaign.created_by === user.userId || campaign.is_shared;
   if (!visible) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const { data: meRow } = await sb
+  const { data: meRow } = await sbRaw
     .from("users")
     .select("is_admin")
     .eq("id", user.userId)

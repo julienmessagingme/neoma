@@ -1,4 +1,4 @@
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabase, getSupabaseScoped } from "@/lib/supabase/service";
 import { formatInTimeZone } from "date-fns-tz";
 
 const TZ = "Europe/Paris";
@@ -69,7 +69,7 @@ export async function getCustomEventDaily(
   from: string,
   to: string
 ): Promise<DailyPoint[]> {
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
   const { fromUtc, toUtc } = rangeBoundsUtc(from, to);
   return paginateBucketed(
     async (offset, pageSize) => {

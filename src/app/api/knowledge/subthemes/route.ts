@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 
@@ -22,7 +22,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const themeId = url.searchParams.get("themeId");
 
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
   let q = sb
     .from("knowledge_subthemes")
     .select("id, name, theme_id, created_at")
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
   }
 
   const schoolSlug = await getCurrentSchoolSlugChecked();
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
 
   // If themeId provided, verify it belongs to the current school. Otherwise
   // a malicious client could attach a subtheme to another school's theme.

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 
@@ -20,7 +20,7 @@ async function findOwnedTheme(
   id: string,
   schoolSlug: string
 ): Promise<{ id: string } | null> {
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
   const { data } = await sb
     .from("knowledge_themes")
     .select("id, school_slug")
@@ -50,7 +50,7 @@ export async function PATCH(
   const owned = await findOwnedTheme(id, schoolSlug);
   if (!owned) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const { error } = await getSupabase()
+  const { error } = await getSupabaseScoped(schoolSlug)
     .from("knowledge_themes")
     .update({ name: parsed.data.name })
     .eq("id", id);
@@ -85,7 +85,7 @@ export async function DELETE(
   // Cascade : the FK on knowledge_subthemes.theme_id is ON DELETE CASCADE,
   // so subthemes go away with the theme. knowledge_items.theme_id is ON
   // DELETE SET NULL, so items keep but lose their theme link.
-  const { error } = await getSupabase()
+  const { error } = await getSupabaseScoped(schoolSlug)
     .from("knowledge_themes")
     .delete()
     .eq("id", id);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 
@@ -22,7 +22,7 @@ async function findOwnedSubtheme(
   id: string,
   schoolSlug: string
 ): Promise<{ id: string } | null> {
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
   const { data } = await sb
     .from("knowledge_subthemes")
     .select("id, school_slug")
@@ -57,7 +57,7 @@ export async function PATCH(
   const owned = await findOwnedSubtheme(id, schoolSlug);
   if (!owned) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
 
   // If themeId is being set, validate it belongs to the same school.
   if (parsed.data.themeId) {
@@ -112,7 +112,7 @@ export async function DELETE(
 
   // FK on knowledge_items.subtheme_id is ON DELETE SET NULL — items lose
   // the subtheme link but stay alive.
-  const { error } = await getSupabase()
+  const { error } = await getSupabaseScoped(schoolSlug)
     .from("knowledge_subthemes")
     .delete()
     .eq("id", id);

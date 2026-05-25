@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 import { invalidateSlugCache } from "@/lib/redirect/lookup";
@@ -10,8 +10,10 @@ export const runtime = "nodejs";
 const PatchBody = z.object({ name: z.string().min(1).max(120) });
 
 async function findOwned(id: string): Promise<{ slug: string } | null> {
-  const sb = getSupabase();
   const schoolSlug = await getCurrentSchoolSlugChecked();
+  const sb = getSupabaseScoped(schoolSlug);
+  // .select() est auto-filtré sur school_slug par le wrapper Proxy ;
+  // un id d'une autre école renverra simplement data=null.
   const { data } = await sb
     .from("redirect_events")
     .select("slug, school_slug")
@@ -38,7 +40,8 @@ export async function PATCH(
   const owned = await findOwned(id);
   if (!owned) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const { error } = await getSupabase()
+  const schoolSlug = await getCurrentSchoolSlugChecked();
+  const { error } = await getSupabaseScoped(schoolSlug)
     .from("redirect_events")
     .update({ name: parsed.data.name })
     .eq("id", id);
@@ -60,7 +63,8 @@ export async function DELETE(
   const owned = await findOwned(id);
   if (!owned) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const { error } = await getSupabase()
+  const schoolSlug = await getCurrentSchoolSlugChecked();
+  const { error } = await getSupabaseScoped(schoolSlug)
     .from("redirect_events")
     .update({ archived_at: new Date().toISOString() })
     .eq("id", id);

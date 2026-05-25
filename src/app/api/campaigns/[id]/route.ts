@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabase, getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 import type {
@@ -51,8 +51,9 @@ async function loadAccessible(
   };
   can_edit: boolean;
 } | null> {
-  const sb = getSupabase();
   const schoolSlug = await getCurrentSchoolSlugChecked();
+  const sb = getSupabaseScoped(schoolSlug);
+  const sbRaw = getSupabase();
   const { data } = await sb
     .from("campaigns")
     .select(
@@ -66,7 +67,7 @@ async function loadAccessible(
   const visible = data.created_by === userId || data.is_shared;
   if (!visible) return null;
 
-  const { data: meRow } = await sb
+  const { data: meRow } = await sbRaw
     .from("users")
     .select("is_admin")
     .eq("id", userId)
@@ -93,7 +94,8 @@ export async function GET(
   const loaded = await loadAccessible(id, user.userId);
   if (!loaded) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const sb = getSupabase();
+  const schoolSlug = await getCurrentSchoolSlugChecked();
+  const sb = getSupabaseScoped(schoolSlug);
   const [refsRes, dashRes] = await Promise.all([
     sb
       .from("campaign_refs")
@@ -155,7 +157,8 @@ export async function PATCH(
   if (!loaded.can_edit)
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const sb = getSupabase();
+  const schoolSlug = await getCurrentSchoolSlugChecked();
+  const sb = getSupabaseScoped(schoolSlug);
   const fields: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   };
@@ -222,7 +225,8 @@ export async function DELETE(
   if (!loaded.can_edit)
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const { error } = await getSupabase()
+  const schoolSlug = await getCurrentSchoolSlugChecked();
+  const { error } = await getSupabaseScoped(schoolSlug)
     .from("campaigns")
     .delete()
     .eq("id", id);

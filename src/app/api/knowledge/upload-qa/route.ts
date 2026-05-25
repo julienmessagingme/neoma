@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 import {
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
   }
 
   // 5. Insert in DB.
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
   const { data: item, error } = await sb
     .from("knowledge_items")
     .insert({

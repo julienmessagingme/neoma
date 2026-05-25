@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 import { invalidateSlugCache } from "@/lib/redirect/lookup";
@@ -31,7 +31,7 @@ export async function POST(
   }
 
   const schoolSlug = await getCurrentSchoolSlugChecked();
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
 
   const { data: ev } = await sb
     .from("redirect_events")
@@ -91,7 +91,7 @@ export async function GET(
 
   const { id } = await ctx.params;
   const schoolSlug = await getCurrentSchoolSlugChecked();
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
 
   // Verify ownership.
   const { data: ev } = await sb

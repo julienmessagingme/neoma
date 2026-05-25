@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 import { resolveDateRange } from "@/lib/dashboards/date-range";
@@ -62,8 +62,8 @@ export async function GET(
     return NextResponse.json({ error: "unauth" }, { status: 401 });
   }
   const { id } = await ctx.params;
-  const sb = getSupabase();
   const scope = await getCurrentSchoolSlugChecked();
+  const sb = getSupabaseScoped(scope);
   const isEdh = isEdhScope(scope);
 
   const { data: dash } = await sb

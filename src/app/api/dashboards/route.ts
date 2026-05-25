@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabase, getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 
@@ -26,7 +26,8 @@ export async function GET() {
   }
 
   const schoolSlug = await getCurrentSchoolSlugChecked();
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
+  const sbRaw = getSupabase();
   // Visibilité : mes tableaux + ceux partagés par d'autres pour cette
   // école. Exclut les tableaux liés à une campagne (édités via /campaigns).
   const { data, error } = await sb
@@ -41,7 +42,7 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Annote chaque dashboard avec can_edit (owner ou admin).
-  const { data: meRow } = await sb
+  const { data: meRow } = await sbRaw
     .from("users")
     .select("is_admin")
     .eq("id", user.userId)
@@ -69,7 +70,7 @@ export async function POST(req: Request) {
   }
 
   const schoolSlug = await getCurrentSchoolSlugChecked();
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
   const { data, error } = await sb
     .from("dashboards")
     .insert({

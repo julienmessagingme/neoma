@@ -1,4 +1,5 @@
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabaseScoped } from "@/lib/supabase/service";
+import { DEFAULT_SCHOOL_SLUG } from "@/lib/schools";
 
 export interface RedirectLookup {
   eventId: string;
@@ -34,7 +35,11 @@ export async function lookupSlug(slug: string): Promise<RedirectLookup | null> {
   const cached = cache.get(slug);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
-  const sb = getSupabase();
+  // Single-school deployment : on scope sur DEFAULT_SCHOOL_SLUG ('neoma'). Le
+  // wrapper Proxy injecte automatiquement `.eq('school_slug', 'neoma')` sur
+  // le SELECT, ce qui empêche par construction de rediriger vers un slug
+  // d'une autre école (la DB est partagée avec EDH).
+  const sb = getSupabaseScoped(DEFAULT_SCHOOL_SLUG);
   const { data: ev } = await sb
     .from("redirect_events")
     .select("id, slug, school_slug")

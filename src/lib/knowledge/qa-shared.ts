@@ -1,4 +1,4 @@
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabaseScoped } from "@/lib/supabase/service";
 
 /**
  * Shared helpers for the Q&R upload + edit flows. Kept here so the upload-qa
@@ -25,7 +25,7 @@ export async function findQaDuplicate(
   answer: string,
   excludeId?: string
 ): Promise<DuplicateCheck> {
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
   const trimmedQ = question.trim();
   const trimmedA = answer.trim();
 
@@ -64,7 +64,7 @@ export async function resolveThemeForSchool(
   themeId: string | null,
   subthemeId: string | null
 ): Promise<{ themeName: string | null; subthemeName: string | null } | null> {
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
   let themeName: string | null = null;
   let subthemeName: string | null = null;
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 import {
@@ -45,7 +45,7 @@ export async function PATCH(
   const { question, answer, themeId, subthemeId } = parsed.data;
 
   const schoolSlug = await getCurrentSchoolSlugChecked();
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
 
   const { data: item } = await sb
     .from("knowledge_items")
@@ -190,7 +190,7 @@ export async function DELETE(
 
   const { id } = await ctx.params;
   const schoolSlug = await getCurrentSchoolSlugChecked();
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
 
   const { data: item } = await sb
     .from("knowledge_items")

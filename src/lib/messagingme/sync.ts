@@ -1,4 +1,4 @@
-import { getSupabase } from "@/lib/supabase/service";
+import { getSupabaseScoped } from "@/lib/supabase/service";
 import { listEvents, iterOccurrences, MmOccurrence } from "./client";
 import { env } from "@/lib/env";
 import { SCHOOLS, getSchoolToken, type School } from "@/lib/schools";
@@ -46,7 +46,7 @@ export async function syncAllSchools(): Promise<SyncResult> {
 }
 
 export async function syncSchool(school: School, token: string): Promise<void> {
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(school.slug);
   const base = env.messagingmeBase;
   const events = await listEvents({ token, base });
 
@@ -116,7 +116,7 @@ async function syncEventOccurrences(
   token: string,
   base: string
 ): Promise<void> {
-  const sb = getSupabase();
+  const sb = getSupabaseScoped(schoolSlug);
 
   const { data: state } = await sb
     .from("mm_sync_state")
