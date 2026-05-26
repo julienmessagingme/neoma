@@ -3,7 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { getSupabase } from "@/lib/supabase/service";
 import { requireAdmin } from "@/lib/auth/require-user";
-import { isValidSchoolSlug } from "@/lib/schools";
+import { DEFAULT_SCHOOL_SLUG, isValidSchoolSlug } from "@/lib/schools";
 import type { AdminUser } from "@/lib/admin/types";
 
 export const runtime = "nodejs";
@@ -24,35 +24,36 @@ export async function GET() {
     return NextResponse.json({ error: "forbidden" }, { status });
   }
 
+  // DB partagée avec d'autres apps (EDH). On ne liste QUE les utilisateurs
+  // qui ont un accès `user_school_access` à l'école Neoma — sinon on verrait
+  // tous les comptes EDH.
   const sb = getSupabase();
+  const { data: access, error: aErr } = await sb
+    .from("user_school_access")
+    .select("user_id")
+    .eq("school_slug", DEFAULT_SCHOOL_SLUG);
+  if (aErr)
+    return NextResponse.json({ error: aErr.message }, { status: 500 });
+  const allowedIds = Array.from(
+    new Set(
+      ((access ?? []) as { user_id: string }[]).map((r) => r.user_id)
+    )
+  );
+  if (allowedIds.length === 0) {
+    return NextResponse.json({ users: [] });
+  }
+
   const { data: users, error: uErr } = await sb
     .from("users")
     .select("id, email, name, is_admin, deactivated_at, last_login_at, created_at")
+    .in("id", allowedIds)
     .order("created_at", { ascending: true });
   if (uErr)
     return NextResponse.json({ error: uErr.message }, { status: 500 });
 
-  const userIds = ((users ?? []) as { id: string }[]).map((u) => u.id);
-  let accessByUser = new Map<string, string[]>();
-  if (userIds.length > 0) {
-    const { data: access, error: aErr } = await sb
-      .from("user_school_access")
-      .select("user_id, school_slug")
-      .in("user_id", userIds);
-    if (aErr)
-      return NextResponse.json({ error: aErr.message }, { status: 500 });
-    accessByUser = (access ?? []).reduce((acc, row) => {
-      const r = row as { user_id: string; school_slug: string };
-      const arr = acc.get(r.user_id) ?? [];
-      arr.push(r.school_slug);
-      acc.set(r.user_id, arr);
-      return acc;
-    }, new Map<string, string[]>());
-  }
-
   const out: AdminUser[] = ((users ?? []) as AdminUser[]).map((u) => ({
     ...u,
-    schools: accessByUser.get(u.id) ?? [],
+    schools: [DEFAULT_SCHOOL_SLUG],
   }));
   return NextResponse.json({ users: out });
 }

@@ -3,9 +3,25 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { getSupabase } from "@/lib/supabase/service";
 import { requireAdmin } from "@/lib/auth/require-user";
-import { isValidSchoolSlug } from "@/lib/schools";
+import { DEFAULT_SCHOOL_SLUG, isValidSchoolSlug } from "@/lib/schools";
 
 export const runtime = "nodejs";
+
+/**
+ * Vérifie que `userId` est bien rattaché à l'école Neoma. La DB est partagée
+ * avec d'autres apps (EDH) — sans ce garde-fou, un admin Neoma pourrait muter
+ * un compte EDH par PATCH/DELETE sur son id.
+ */
+async function isNeomaUser(userId: string): Promise<boolean> {
+  const sb = getSupabase();
+  const { data } = await sb
+    .from("user_school_access")
+    .select("user_id")
+    .eq("user_id", userId)
+    .eq("school_slug", DEFAULT_SCHOOL_SLUG)
+    .maybeSingle();
+  return !!data;
+}
 
 const PatchBody = z
   .object({
@@ -17,15 +33,27 @@ const PatchBody = z
   })
   .refine((b) => Object.keys(b).length > 0, "empty patch");
 
-/** Count of currently active admins (excluding the given user). */
+/**
+ * Compte les admins actifs RATTACHÉS À NEOMA, en excluant l'utilisateur passé.
+ * Garde-fou : empêcher la rétrogradation/désactivation du dernier admin Neoma
+ * (les admins EDH ne comptent pas — ils ne peuvent rien faire sur Neoma).
+ */
 async function countOtherActiveAdmins(excludeUserId: string): Promise<number> {
   const sb = getSupabase();
+  const { data: access } = await sb
+    .from("user_school_access")
+    .select("user_id")
+    .eq("school_slug", DEFAULT_SCHOOL_SLUG);
+  const ids = ((access ?? []) as { user_id: string }[])
+    .map((r) => r.user_id)
+    .filter((id) => id !== excludeUserId);
+  if (ids.length === 0) return 0;
   const { count } = await sb
     .from("users")
     .select("*", { count: "exact", head: true })
+    .in("id", ids)
     .eq("is_admin", true)
-    .is("deactivated_at", null)
-    .neq("id", excludeUserId);
+    .is("deactivated_at", null);
   return count ?? 0;
 }
 
@@ -47,6 +75,11 @@ export async function PATCH(
       { error: "invalid body", details: parsed.error.flatten() },
       { status: 400 }
     );
+  }
+
+  // Garde-fou DB partagée : refuse de muter un utilisateur qui n'a pas d'accès Neoma
+  if (!(await isNeomaUser(id))) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
   const sb = getSupabase();
@@ -125,6 +158,11 @@ export async function DELETE(
       { error: "cannot deactivate self" },
       { status: 400 }
     );
+  }
+
+  // Garde-fou DB partagée
+  if (!(await isNeomaUser(id))) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
   const sb = getSupabase();
