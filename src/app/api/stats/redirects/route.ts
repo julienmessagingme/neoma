@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
-import { getSchoolBySlug, isEdhScope, EDH_SCHOOL_SLUGS } from "@/lib/schools";
+import { getSchoolBySlug } from "@/lib/schools";
 import { formatInTimeZone } from "date-fns-tz";
 
 export const runtime = "nodejs";
@@ -18,7 +18,7 @@ const Q = z.object({
  * GET /api/stats/redirects?from=YYYY-MM-DD&to=YYYY-MM-DD
  *
  * Liste les URLs trackées (non archivées) avec leur nombre de clics sur
- * la période. Per-école ou toutes-écoles selon le scope courant.
+ * la période, pour l'école courante.
  */
 export async function GET(req: Request) {
   try {
@@ -37,22 +37,13 @@ export async function GET(req: Request) {
 
   const schoolSlug = await getCurrentSchoolSlugChecked();
   const sb = getSupabaseScoped(schoolSlug);
-  const isEdh = isEdhScope(schoolSlug);
 
-  // En mode EDH, on remonte les URLs des 9 écoles EDH. Filtre IN obligatoire
-  // car la DB est partagée avec d'autres projets (ex: keolis-auxerre).
-  let q = sb
+  const { data: events, error } = await sb
     .from("redirect_events")
     .select("id, slug, name, school_slug")
     .is("archived_at", null)
-    .order("school_slug")
+    .eq("school_slug", schoolSlug)
     .order("name");
-  if (isEdh) {
-    q = q.in("school_slug", EDH_SCHOOL_SLUGS as string[]);
-  } else {
-    q = q.eq("school_slug", schoolSlug);
-  }
-  const { data: events, error } = await q;
   if (error)
     return NextResponse.json({ error: error.message }, { status: 500 });
 

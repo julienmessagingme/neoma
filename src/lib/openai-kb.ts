@@ -2,9 +2,9 @@ import OpenAI from "openai";
 import { getSchoolVectorStoreId } from "@/lib/schools";
 
 /**
- * Wrapper around OpenAI Files API + Vector Stores API for the EDH knowledge
- * base feature. One vector store per school is configured via env vars
- * (OPENAI_VS_<SLUG>) and selected at call time.
+ * Wrapper around OpenAI Files API + Vector Stores API for the Neoma
+ * knowledge base feature. One vector store per school is configured via env
+ * vars (OPENAI_VS_<SLUG>) and selected at call time.
  *
  * Uses the official `openai` SDK for the Files API (well-typed) and native
  * fetch for the Vector Stores API (the SDK's typing for the v2 beta is

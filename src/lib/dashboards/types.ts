@@ -8,9 +8,8 @@ export interface StepRef {
   step_type: StepType;
   event_ns: string | null;
   redirect_event_id: string | null;
-  /** Renseigné uniquement en mode EDH groupe pour les refs mm_event :
-   *  l'event_ns n'étant pas globalement unique entre écoles, on doit
-   *  porter l'origine. NULL en mode école-précise (legacy). */
+  /** Legacy : champ DB conservé pour rétro-compat (l'event_ns n'est pas
+   *  globalement unique en théorie). NULL en mode école-précise. */
   event_school_slug: string | null;
 }
 
@@ -70,7 +69,8 @@ export interface ComputedRef {
   label: string;
   count: number;
   available: boolean;
-  /** Renseigné en mode EDH pour préfixer le label avec l'école (chip). */
+  /** Legacy multi-école : préfixe le label avec l'école (chip). Inutilisé en
+   *  single-school. */
   school_slug?: string;
   school_name?: string;
   /** Coût Meta WhatsApp marketing estimé (en EUR) pour cet event, calculé
@@ -120,7 +120,7 @@ export interface CampaignCostSummary {
     count: number;
     cost_eur: number;
     breakdown: MetaCostBreakdownItem[];
-    /** Label affichable de l'event de lancement (avec chip école en EDH). */
+    /** Label affichable de l'event de lancement. */
     label: string;
     /** Identité brute de la ref launch, utile pour les selects inline
      *  du builder (matcher la palette key + envoyer un PATCH). */
@@ -169,8 +169,8 @@ export interface PaletteItem {
   step_type: StepType;
   ref_id: string;
   label: string;
-  /** En mode EDH groupe, l'école d'origine est portée par chaque item ;
-   *  en mode école-précise, ces champs sont absents. */
+  /** Legacy multi-école : l'école d'origine est portée par chaque item.
+   *  Absent en mode école-précise (cas Neoma). */
   school_slug?: string;
   school_name?: string;
   /** Vrai pour les mm_event dont `text_label` est non vide → l'event

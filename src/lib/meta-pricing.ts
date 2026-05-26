@@ -8,7 +8,7 @@
  * marketing envoyé (sortant initié par l'entreprise — fenêtre 24h
  * dépassée ou template marketing).
  *
- * Couverture : les ~50 pays les plus probables pour EDH (Europe, Maghreb,
+ * Couverture : les ~50 pays les plus probables côté client (Europe, Maghreb,
  * Afrique de l'Ouest, Moyen-Orient, Amériques, Asie principale). Pour
  * tout autre indicatif, on retombe sur la zone « Other » avec un tarif
  * moyen estimé.
@@ -39,7 +39,7 @@ const FALLBACK: PhoneCountry = {
  * USA/Canada pour le MVP).
  *
  * Valeurs marketing EUR au 2026-05 (à raffiner avec la facturation Meta
- * réelle du compte WABA EDH).
+ * réelle du compte WABA).
  */
 const PHONE_CODES: Record<string, PhoneCountry> = {
   // --- Europe de l'Ouest ---

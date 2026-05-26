@@ -414,8 +414,8 @@ function SectionCard({
   );
 }
 
-/** Select natif avec optgroup par école en mode EDH. Accepte une option
- *  vide « Aucun » pour les rôles optionnels (launch / failed). */
+/** Select natif avec optgroup par école en mode multi-école. Accepte une
+ *  option vide « Aucun » pour les rôles optionnels (launch / failed). */
 function EventSelect({
   value,
   onChange,

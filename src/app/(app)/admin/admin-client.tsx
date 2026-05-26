@@ -5,7 +5,7 @@ import { toast, Toaster } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Pencil, UserMinus, UserCheck, ShieldCheck } from "lucide-react";
-import { SCHOOLS, EDH_SCOPE_NAME, isEdhScope } from "@/lib/schools";
+import { SCHOOLS } from "@/lib/schools";
 import type { AdminUser } from "@/lib/admin/types";
 import { UserDialog } from "./user-dialog";
 
@@ -128,17 +128,6 @@ export function AdminClient({ meId }: { meId: string }) {
                         </span>
                       ) : (
                         u.schools.slice(0, 6).map((s) => {
-                          if (isEdhScope(s)) {
-                            return (
-                              <span
-                                key={s}
-                                className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-medium"
-                                title="Accès à la vue agrégée toutes écoles"
-                              >
-                                {EDH_SCOPE_NAME}
-                              </span>
-                            );
-                          }
                           const meta = SCHOOLS.find((x) => x.slug === s);
                           return (
                             <span

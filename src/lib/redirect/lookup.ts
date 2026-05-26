@@ -38,7 +38,7 @@ export async function lookupSlug(slug: string): Promise<RedirectLookup | null> {
   // Single-school deployment : on scope sur DEFAULT_SCHOOL_SLUG ('neoma'). Le
   // wrapper Proxy injecte automatiquement `.eq('school_slug', 'neoma')` sur
   // le SELECT, ce qui empêche par construction de rediriger vers un slug
-  // d'une autre école (la DB est partagée avec EDH).
+  // d'une autre école (la DB est partagée).
   const sb = getSupabaseScoped(DEFAULT_SCHOOL_SLUG);
   const { data: ev } = await sb
     .from("redirect_events")

@@ -3,8 +3,8 @@ import type { CampaignRef } from "./types";
 /**
  * Reconstruit la clé de palette (`PaletteItem.ref_id`) à partir d'une
  * `CampaignRef`. La palette compose un id composite "<school>:<event_ns>"
- * en mode EDH pour éviter les collisions entre écoles ; cette fonction
- * applique la même règle dans l'autre sens.
+ * en mode multi-école pour éviter les collisions ; cette fonction applique
+ * la même règle dans l'autre sens. En single-school le préfixe est absent.
  */
 export function paletteKeyOf(r: CampaignRef): string {
   if (r.step_type === "mm_event") {

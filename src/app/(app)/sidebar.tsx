@@ -10,21 +10,11 @@ interface SchoolItem {
   logo: string;
 }
 
-interface EdhEntry {
-  slug: string;
-  name: string;
-  logo: string;
-}
-
 export function Sidebar({
   schools,
-  edh,
   currentSlug,
 }: {
   schools: SchoolItem[];
-  /** Si renseigné, l'utilisateur a l'accès EDH groupe : on affiche
-   *  l'entrée en haut de sidebar avec un séparateur. */
-  edh: EdhEntry | null;
   currentSlug: string;
 }) {
   const router = useRouter();
@@ -48,13 +38,7 @@ export function Sidebar({
     router.refresh();
   }
 
-  function ScopeButton({
-    item,
-    accent,
-  }: {
-    item: { slug: string; name: string; logo: string };
-    accent?: boolean;
-  }) {
+  function ScopeButton({ item }: { item: SchoolItem }) {
     const active = item.slug === currentSlug;
     const pending = item.slug === pendingSlug;
     const disabled = pendingSlug !== null;
@@ -64,19 +48,13 @@ export function Sidebar({
         className={`flex items-center gap-2 text-left px-2 py-1.5 rounded text-sm transition-colors ${
           active
             ? "bg-zinc-900 text-white"
-            : accent
-            ? "hover:bg-amber-50 text-zinc-700"
             : "hover:bg-zinc-100 text-zinc-700"
         } ${pending ? "opacity-60" : ""} ${disabled && !pending ? "opacity-40" : ""}`}
         disabled={disabled}
       >
         <span
           className={`flex h-7 w-7 shrink-0 items-center justify-center rounded bg-white p-0.5 ${
-            active
-              ? "ring-1 ring-white/40"
-              : accent
-              ? "ring-1 ring-amber-300"
-              : "ring-1 ring-zinc-200"
+            active ? "ring-1 ring-white/40" : "ring-1 ring-zinc-200"
           }`}
         >
           <Image
@@ -95,13 +73,7 @@ export function Sidebar({
 
   return (
     <aside className="w-56 bg-white border-r flex flex-col p-4 space-y-1">
-      {edh && (
-        <>
-          <ScopeButton item={edh} accent />
-          <div className="h-px bg-zinc-200 my-2" />
-        </>
-      )}
-      {schools.length === 0 && !edh && (
+      {schools.length === 0 && (
         <p className="text-xs text-zinc-500 px-2 py-2">
           Aucune école assignée. Contactez un administrateur.
         </p>

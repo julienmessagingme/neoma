@@ -15,8 +15,8 @@ const RefSchema = z.discriminatedUnion("step_type", [
   z.object({
     step_type: z.literal("mm_event"),
     event_ns: z.string().min(1),
-    /** Renseigné par le builder en mode EDH (event_ns non globalement
-     *  unique). Ignoré en mode école-précise. */
+    /** Legacy multi-école (event_ns non globalement unique en théorie).
+     *  Ignoré en mode école-précise (cas single-school Neoma). */
     event_school_slug: z.string().min(1).optional().nullable(),
   }),
   z.object({

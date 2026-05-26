@@ -3,18 +3,8 @@ import { Sidebar } from "./sidebar";
 import { HeaderTabs } from "./header-tabs";
 import { ScopeProvider } from "./scope-context";
 import { getCurrentSchoolSlug } from "@/lib/schools/context";
-import {
-  getCurrentUserSchools,
-  getCurrentUserHasEdhAccess,
-} from "@/lib/schools/access";
-import {
-  SCHOOLS,
-  EDH_GROUP_LOGO,
-  EDH_SCOPE_SLUG,
-  EDH_SCOPE_NAME,
-  MESSAGINGME_LOGO,
-  isEdhScope,
-} from "@/lib/schools";
+import { getCurrentUserSchools } from "@/lib/schools/access";
+import { SCHOOLS, BRAND_LOGO, MESSAGINGME_LOGO } from "@/lib/schools";
 import { requireUser } from "@/lib/auth/require-user";
 import { getSupabase } from "@/lib/supabase/service";
 
@@ -32,26 +22,19 @@ export default async function AppLayout({
     .maybeSingle();
   const isAdmin = !!data?.is_admin;
 
-  const [accessibleSlugs, hasEdhAccess] = await Promise.all([
-    getCurrentUserSchools(user.userId),
-    getCurrentUserHasEdhAccess(user.userId),
-  ]);
+  const accessibleSlugs = await getCurrentUserSchools(user.userId);
   const allowedSlugs = new Set(accessibleSlugs);
   const accessibleSchools = SCHOOLS.filter((s) => allowedSlugs.has(s.slug));
   const currentSlug = await getCurrentSchoolSlug();
-  const currentInAllowed =
-    allowedSlugs.has(currentSlug) ||
-    (isEdhScope(currentSlug) && hasEdhAccess);
-  const effectiveCurrentSlug = currentInAllowed
+  const effectiveCurrentSlug = allowedSlugs.has(currentSlug)
     ? currentSlug
-    : accessibleSchools[0]?.slug ?? (hasEdhAccess ? EDH_SCOPE_SLUG : currentSlug);
-  const isEdh = isEdhScope(effectiveCurrentSlug);
+    : accessibleSchools[0]?.slug ?? currentSlug;
 
   return (
     <div className="min-h-screen flex flex-col bg-zinc-50">
       <header className="bg-white border-b px-4 py-2 flex items-center gap-6">
         <Image
-          src={EDH_GROUP_LOGO}
+          src={BRAND_LOGO}
           alt="Neoma"
           width={40}
           height={40}
@@ -59,7 +42,7 @@ export default async function AppLayout({
           unoptimized
           priority
         />
-        <HeaderTabs isAdmin={isAdmin} isEdhScope={isEdh} />
+        <HeaderTabs isAdmin={isAdmin} />
       </header>
 
       <div className="flex flex-1 min-h-0">
@@ -69,21 +52,10 @@ export default async function AppLayout({
             name: s.name,
             logo: s.logo,
           }))}
-          edh={
-            hasEdhAccess
-              ? {
-                  slug: EDH_SCOPE_SLUG,
-                  name: EDH_SCOPE_NAME,
-                  logo: EDH_GROUP_LOGO,
-                }
-              : null
-          }
           currentSlug={effectiveCurrentSlug}
         />
         <main className="flex-1 p-6">
-          <ScopeProvider slug={effectiveCurrentSlug} isEdh={isEdh}>
-            {children}
-          </ScopeProvider>
+          <ScopeProvider slug={effectiveCurrentSlug}>{children}</ScopeProvider>
         </main>
       </div>
 

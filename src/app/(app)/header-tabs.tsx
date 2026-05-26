@@ -11,41 +11,32 @@ interface Tab {
 
 /**
  * Top-level navigation : "Stats" (qui regroupe /urls, /stats et /dashboards),
- * "Base de connaissance" (/knowledge), et "Admin" (visible uniquement si
- * `isAdmin`). En mode EDH groupe (`isEdhScope`), l'onglet "Base de
- * connaissance" est masqué — il n'y a pas de KB groupe, chaque école a son
- * propre vector store.
+ * "Base de connaissance" (/knowledge), "Analyse conversation", et "Admin"
+ * (visible uniquement si `isAdmin`).
  */
-export function HeaderTabs({
-  isAdmin,
-  isEdhScope,
-}: {
-  isAdmin: boolean;
-  isEdhScope: boolean;
-}) {
+export function HeaderTabs({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
   const tabs: Tab[] = [
     {
-      href: isEdhScope ? "/dashboards" : "/urls",
+      href: "/urls",
       label: "Stats",
       // Stats encompasses URLs / Stats / Mes tableaux
       match: (p) =>
         !p.startsWith("/knowledge") &&
-        !p.startsWith("/admin"),
+        !p.startsWith("/admin") &&
+        !p.startsWith("/analyse-conversation"),
     },
-  ];
-  if (!isEdhScope) {
-    tabs.push({
+    {
       href: "/knowledge",
       label: "Base de connaissance",
       match: (p) => p.startsWith("/knowledge"),
-    });
-  }
-  tabs.push({
-    href: "/analyse-conversation",
-    label: "Analyse conversation",
-    match: (p) => p.startsWith("/analyse-conversation"),
-  });
+    },
+    {
+      href: "/analyse-conversation",
+      label: "Analyse conversation",
+      match: (p) => p.startsWith("/analyse-conversation"),
+    },
+  ];
   if (isAdmin) {
     tabs.push({
       href: "/admin",

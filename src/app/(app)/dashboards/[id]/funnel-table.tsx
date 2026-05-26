@@ -38,7 +38,7 @@ export function FunnelTable({ steps }: { steps: ComputedStep[] }) {
   if (steps.length === 0) return null;
   const first = steps[0]?.count ?? 0;
   // Colonne « Coût Meta » affichée uniquement si au moins une étape porte
-  // un coût. Évite une colonne vide dans 99 % des funnels EDH.
+  // un coût. Évite une colonne vide dans 99 % des funnels.
   const hasMetaCost = steps.some(
     (s) => s.meta_cost_eur != null && s.meta_cost_eur > 0
   );

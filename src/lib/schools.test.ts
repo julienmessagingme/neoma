@@ -17,15 +17,6 @@ describe("schools", () => {
     expect(isValidSchoolSlug("neoma")).toBe(true);
     expect(isValidSchoolSlug("nope")).toBe(false);
     expect(isValidSchoolSlug("")).toBe(false);
-    expect(isValidSchoolSlug("edh")).toBe(false);
-  });
-
-  it("isValidScopeSlug accepts schools (group scope désactivé)", async () => {
-    const { isValidScopeSlug, isEdhScope } = await import("./schools");
-    expect(isValidScopeSlug("neoma")).toBe(true);
-    expect(isValidScopeSlug("nope")).toBe(false);
-    expect(isValidScopeSlug("")).toBe(false);
-    expect(isEdhScope("neoma")).toBe(false);
   });
 
   it("getSchoolToken returns env value when set, undefined otherwise", async () => {

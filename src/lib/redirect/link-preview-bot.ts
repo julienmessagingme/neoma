@@ -6,7 +6,7 @@
  * (et d'autres plateformes) crawl le lien pour générer la preview montrée
  * au contact dans le chat. Sans filtre, chaque envoi de template produit
  * 1+ hits dans `clicks` — les compteurs reflètent les envois, pas les
- * vrais clics. Constaté en prod EDH (mai 2026) : 149 hits sur 150 étaient
+ * vrais clics. Constaté en prod (mai 2026) : 149 hits sur 150 étaient
  * `facebookexternalua` depuis le range IPv6 `2a03:2880::/29` (ASN AS32934
  * Facebook).
  *

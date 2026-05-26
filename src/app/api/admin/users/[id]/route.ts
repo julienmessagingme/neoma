@@ -3,7 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { getSupabase } from "@/lib/supabase/service";
 import { requireAdmin } from "@/lib/auth/require-user";
-import { isValidScopeSlug } from "@/lib/schools";
+import { isValidSchoolSlug } from "@/lib/schools";
 
 export const runtime = "nodejs";
 
@@ -88,8 +88,7 @@ export async function PATCH(
   }
 
   if (parsed.data.schools !== undefined) {
-    // isValidScopeSlug autorise les 9 écoles + le scope sentinelle 'edh'.
-    const validSchools = parsed.data.schools.filter(isValidScopeSlug);
+    const validSchools = parsed.data.schools.filter(isValidSchoolSlug);
     const { error: delErr } = await sb
       .from("user_school_access")
       .delete()

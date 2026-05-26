@@ -16,8 +16,8 @@ export interface CampaignRef {
   step_type: StepType;
   event_ns: string | null;
   redirect_event_id: string | null;
-  /** Renseigné uniquement en mode EDH pour les refs mm_event (event_ns non
-   *  globalement unique entre écoles). NULL en mode école-précise. */
+  /** Legacy : champ DB conservé pour rétro-compat (l'event_ns n'est pas
+   *  globalement unique en théorie). NULL en mode école-précise. */
   event_school_slug: string | null;
   /** Défaut 'body' pour les refs existantes pré-migration 012. */
   role: CampaignRefRole;

@@ -7,24 +7,11 @@ export interface School {
   logo: string;
 }
 
-/**
- * Logo de marque affiché en haut à gauche du shell. Single-school deployment :
- * c'est le logo Neoma. Le nom de la constante reste `EDH_GROUP_LOGO` pour
- * minimiser le diff vs le code EDH d'origine.
- */
-export const EDH_GROUP_LOGO = "/logos/neoma.png";
+/** Logo de marque affiché en haut à gauche du shell. */
+export const BRAND_LOGO = "/logos/neoma.png";
 
 /** Logo MessagingMe (rendu dans le footer du shell auth-gated). */
 export const MESSAGINGME_LOGO = "/logos/messagingme.png";
-
-/**
- * Slug-sentinelle hérité d'EDH pour le scope groupe multi-écoles. Dans Neoma
- * (single-school) il n'est jamais activé — aucun utilisateur ne reçoit la
- * permission EDH dans `user_school_access`. Les constantes sont conservées
- * pour minimiser les diffs avec le code EDH d'origine.
- */
-export const EDH_SCOPE_SLUG = "__neoma_group_disabled__";
-export const EDH_SCOPE_NAME = "(désactivé)";
 
 export const SCHOOLS: readonly School[] = [
   { slug: "neoma", name: "Neoma", tokenEnv: "MM_TOKEN_NEOMA", vectorStoreEnv: "OPENAI_VS_NEOMA", logo: "/logos/neoma.png" },
@@ -32,28 +19,11 @@ export const SCHOOLS: readonly School[] = [
 
 const SLUG_SET = new Set(SCHOOLS.map((s) => s.slug));
 
-/**
- * Liste des slugs d'école pour ce déploiement (Neoma seul). Conservé pour
- * compat avec le code hérité d'EDH qui filtre les requêtes "groupe" sur
- * ce set.
- */
-export const EDH_SCHOOL_SLUGS: readonly string[] = SCHOOLS.map((s) => s.slug);
+/** Liste des slugs d'école pour ce déploiement (Neoma seul). */
+export const SCHOOL_SLUGS: readonly string[] = SCHOOLS.map((s) => s.slug);
 
 export function isValidSchoolSlug(slug: string): boolean {
   return SLUG_SET.has(slug);
-}
-
-/**
- * Valide les valeurs acceptables pour le cookie de scope ou pour
- * `dashboards.school_slug`. Dans Neoma, équivalent à `isValidSchoolSlug`
- * (le scope groupe n'est jamais activé).
- */
-export function isValidScopeSlug(slug: string): boolean {
-  return SLUG_SET.has(slug) || slug === EDH_SCOPE_SLUG;
-}
-
-export function isEdhScope(slug: string): boolean {
-  return slug === EDH_SCOPE_SLUG;
 }
 
 export function getSchoolBySlug(slug: string): School | undefined {

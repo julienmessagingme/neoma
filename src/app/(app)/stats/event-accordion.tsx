@@ -39,8 +39,7 @@ export function EventAccordion({
   };
   from: string;
   to: string;
-  /** Affiche un chip "EFAP", "3WA", etc. devant le nom de l'event. Activé
-   *  en mode EDH où la même event_ns peut exister dans plusieurs écoles. */
+  /** Affiche un chip avec le nom de l'école devant le nom de l'event. */
   showSchoolChip?: boolean;
 }) {
   const [series, setSeries] = useState<DailyPoint[] | null>(null);

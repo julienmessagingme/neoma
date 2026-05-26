@@ -83,8 +83,8 @@ interface PendingRef {
   step_type: "mm_event" | "url_click";
   event_ns?: string;
   redirect_event_id?: string;
-  /** Mode EDH uniquement : école d'origine du mm_event (event_ns non
-   *  globalement unique). Ignoré pour url_click. */
+  /** École d'origine du mm_event. NULL en single-school (champ legacy
+   *  conservé pour compat avec le schéma DB partagé). */
   event_school_slug?: string;
 }
 
@@ -409,8 +409,9 @@ export function BuilderClient({
   }
 
   function makeRef(p: PaletteItem, position: number): StepRef {
-    // En mode EDH, ref_id pour un mm_event est composite "<school>:<event_ns>".
-    // On split pour stocker proprement event_ns + event_school_slug.
+    // ref_id pour un mm_event est composite "<school>:<event_ns>" si l'item
+    // porte une école (héritage du schéma multi-école). En single-school,
+    // l'item n'a pas de school_slug → on prend ref_id tel quel.
     if (p.step_type === "mm_event") {
       const eventNs = p.school_slug
         ? p.ref_id.slice(p.school_slug.length + 1)
@@ -538,8 +539,8 @@ export function BuilderClient({
   }
 
   // Resolve label + availability + school chip for a single ref using the
-  // local palette. En mode EDH, l'identité d'un mm_event est composite
-  // (school_slug, event_ns) : on doit reconstituer la clé pour matcher.
+  // local palette. L'identité d'un mm_event peut être composite
+  // (school_slug, event_ns) en multi-école ; en single-school, juste event_ns.
   const resolveRef = useCallback(
     (
       r: StepRef
@@ -1162,8 +1163,7 @@ function CampaignRoleInline(props: {
 
 /** Select inline qui modifie immédiatement (via API) l'event d'un rôle
  *  donné (launch ou failed) sur la campagne. Affiche les events
- *  candidats issus de la palette, avec optgroup par école en mode EDH.
- *  Une option « — Aucun — » pour clear le rôle. */
+ *  candidats issus de la palette. Une option « — Aucun — » pour clear le rôle. */
 function RoleEventSelect({
   label,
   role,
@@ -1199,8 +1199,8 @@ function RoleEventSelect({
       if (!refId) {
         body = { role, event_ns: null };
       } else {
-        // Split palette key en mode EDH ("<school>:<event_ns>") vs école
-        // précise (juste event_ns).
+        // Split palette key en mode multi-école ("<school>:<event_ns>") vs
+        // école précise (juste event_ns).
         const item = items.find((p) => p.ref_id === refId);
         if (!item) return;
         const eventNs = item.school_slug
@@ -1305,8 +1305,8 @@ function PaletteRow({ item }: { item: PaletteItem }) {
     id: `${PALETTE_PREFIX}${item.ref_id}`,
   });
   // Tooltip natif : la palette tronque à 240 px, beaucoup de noms d'events
-  // EDH font 30-60 chars. Le `title` permet de lire le label complet au
-  // hover sans avoir à élargir la sidebar.
+  // font 30-60 chars. Le `title` permet de lire le label complet au hover
+  // sans avoir à élargir la sidebar.
   const fullLabel = item.school_name
     ? `[${item.school_name}] ${item.label}`
     : item.label;

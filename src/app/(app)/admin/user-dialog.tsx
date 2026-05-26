@@ -155,7 +155,7 @@ export function UserDialog({ mode, user, onClose, onSaved }: Props) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={mode === "edit"}
-              placeholder="prenom.nom@groupe-edh.com"
+              placeholder="prenom.nom@neoma-bs.fr"
             />
           </div>
 

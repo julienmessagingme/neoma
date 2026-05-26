@@ -3,7 +3,6 @@ import { getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 import { getClicksDaily } from "@/lib/stats/daily";
-import { isEdhScope, EDH_SCHOOL_SLUGS } from "@/lib/schools";
 
 export const runtime = "nodejs";
 
@@ -30,22 +29,13 @@ export async function GET(
   }
   const scope = await getCurrentSchoolSlugChecked();
 
-  // En mode école-précise, l'event doit appartenir à cette école. En mode
-  // EDH groupe, l'event doit appartenir à l'une des 9 écoles EDH (filtre
-  // explicite car la DB est partagée avec d'autres projets).
+  // L'event doit appartenir à l'école courante.
   const { data: ev } = await getSupabaseScoped(scope)
     .from("redirect_events")
     .select("school_slug")
     .eq("id", event_id)
     .maybeSingle();
-  if (!ev) {
-    return NextResponse.json({ error: "not found" }, { status: 404 });
-  }
-  if (isEdhScope(scope)) {
-    if (!EDH_SCHOOL_SLUGS.includes(ev.school_slug)) {
-      return NextResponse.json({ error: "not found" }, { status: 404 });
-    }
-  } else if (ev.school_slug !== scope) {
+  if (!ev || ev.school_slug !== scope) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 

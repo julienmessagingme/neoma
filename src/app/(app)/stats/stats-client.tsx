@@ -9,7 +9,6 @@ import { toast, Toaster } from "sonner";
 import { EventAccordion } from "./event-accordion";
 import { RedirectAccordion } from "./redirect-accordion";
 import { SubNavStats } from "../sub-nav-stats";
-import { useScope } from "../scope-context";
 
 import type { MetaCostBreakdownItem } from "@/lib/dashboards/types";
 
@@ -57,7 +56,6 @@ export function StatsClient() {
   const [syncs, setSyncs] = useState<SyncState[]>([]);
   const [loading, setLoading] = useState(false);
   const [resyncing, setResyncing] = useState(false);
-  const { isEdh } = useScope();
 
   async function load() {
     setLoading(true);
@@ -146,16 +144,12 @@ export function StatsClient() {
       </div>
 
       <section className="space-y-2">
-        <h2 className="text-xl font-semibold">
-          Custom events MessagingMe{isEdh ? " — toutes écoles" : ""}
-        </h2>
+        <h2 className="text-xl font-semibold">Custom events MessagingMe</h2>
         {loading ? (
           <p className="text-zinc-500">Chargement…</p>
         ) : events.length === 0 ? (
           <p className="text-zinc-500">
-            {isEdh
-              ? "Aucun custom event remonté pour les écoles du groupe."
-              : "Aucun custom event pour cette école. Lancez un sync via le bouton ⟳ en bas de page."}
+            Aucun custom event pour cette école. Lancez un sync via le bouton ⟳ en bas de page.
           </p>
         ) : (
           <Accordion multiple className="space-y-2">
@@ -165,7 +159,6 @@ export function StatsClient() {
                 ev={ev}
                 from={from}
                 to={to}
-                showSchoolChip={isEdh}
               />
             ))}
           </Accordion>
@@ -173,27 +166,17 @@ export function StatsClient() {
       </section>
 
       <section className="space-y-2 pt-4">
-        <h2 className="text-xl font-semibold">
-          Clics URL trackées{isEdh ? " — toutes écoles" : ""}
-        </h2>
+        <h2 className="text-xl font-semibold">Clics URL trackées</h2>
         {loading ? (
           <p className="text-zinc-500">Chargement…</p>
         ) : redirects.length === 0 ? (
           <p className="text-zinc-500">
-            {isEdh
-              ? "Aucune URL trackée dans le groupe."
-              : "Aucune URL trackée pour cette école. Créez-en une dans l'onglet URLs."}
+            Aucune URL trackée pour cette école. Créez-en une dans l&apos;onglet URLs.
           </p>
         ) : (
           <Accordion multiple className="space-y-2">
             {redirects.map((r) => (
-              <RedirectAccordion
-                key={r.id}
-                redirect={r}
-                from={from}
-                to={to}
-                showSchoolChip={isEdh}
-              />
+              <RedirectAccordion key={r.id} redirect={r} from={from} to={to} />
             ))}
           </Accordion>
         )}

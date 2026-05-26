@@ -19,18 +19,6 @@ function setRows(rows: { school_slug: string }[]) {
   };
 }
 
-function setEdhCount(count: number) {
-  return {
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          eq: () => Promise.resolve({ count, error: null }),
-        }),
-      }),
-    }),
-  };
-}
-
 describe("getCurrentUserSchools", () => {
   it("returns the user's school slugs ordered by SCHOOLS constant", async () => {
     const { getSupabase } = await import("@/lib/supabase/service");
@@ -68,39 +56,4 @@ describe("getCurrentUserSchools", () => {
     expect(await getCurrentUserSchools("u1")).toEqual(["efap"]);
   });
 
-  it("filters out the 'edh' sentinel — handled separately", async () => {
-    const { getSupabase } = await import("@/lib/supabase/service");
-    (getSupabase as unknown as { mockReturnValue: (v: unknown) => void }).mockReturnValue(
-      setRows([
-        { school_slug: "efap" },
-        { school_slug: "edh" }, // sentinelle, ne doit pas apparaitre dans les écoles
-      ])
-    );
-    const { getCurrentUserSchools } = await import("@/lib/schools/access");
-    expect(await getCurrentUserSchools("u1")).toEqual(["efap"]);
-  });
-});
-
-describe("getCurrentUserHasEdhAccess", () => {
-  it("returns true when count > 0", async () => {
-    const { getSupabase } = await import("@/lib/supabase/service");
-    (getSupabase as unknown as { mockReturnValue: (v: unknown) => void }).mockReturnValue(
-      setEdhCount(1)
-    );
-    const { getCurrentUserHasEdhAccess } = await import(
-      "@/lib/schools/access"
-    );
-    expect(await getCurrentUserHasEdhAccess("u1")).toBe(true);
-  });
-
-  it("returns false when count = 0", async () => {
-    const { getSupabase } = await import("@/lib/supabase/service");
-    (getSupabase as unknown as { mockReturnValue: (v: unknown) => void }).mockReturnValue(
-      setEdhCount(0)
-    );
-    const { getCurrentUserHasEdhAccess } = await import(
-      "@/lib/schools/access"
-    );
-    expect(await getCurrentUserHasEdhAccess("u1")).toBe(false);
-  });
 });

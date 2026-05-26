@@ -3,7 +3,6 @@ import { getSupabaseScoped } from "@/lib/supabase/service";
 import { getCurrentSchoolSlugChecked } from "@/lib/schools/context";
 import { requireUser } from "@/lib/auth/require-user";
 import { resolveDateRange } from "@/lib/dashboards/date-range";
-import { getSchoolBySlug, isEdhScope } from "@/lib/schools";
 import { groupMetaCostsByCountry } from "@/lib/meta-pricing";
 import type {
   MetaCostBreakdownItem,
@@ -64,7 +63,6 @@ export async function GET(
   const { id } = await ctx.params;
   const scope = await getCurrentSchoolSlugChecked();
   const sb = getSupabaseScoped(scope);
-  const isEdh = isEdhScope(scope);
 
   const { data: dash } = await sb
     .from("dashboards")
@@ -132,15 +130,12 @@ export async function GET(
 
   const refRows = (refsData ?? []) as RefRow[];
 
-  // Pour chaque mm_event ref, l'école est event_school_slug en mode EDH,
-  // sinon le school_slug du dashboard. Pour les url_click on stocke par
-  // redirect_event_id (uuid global) et on lira l'école côté redirect_events.
+  // Pour chaque mm_event ref, l'école est celle du dashboard (single-school).
   type MmKey = string; // `${school}|${event_ns}`
   const mmKeys = new Set<MmKey>();
   for (const r of refRows) {
     if (r.step_type === "mm_event" && r.event_ns) {
-      const sch = isEdh ? r.event_school_slug : dashSchool;
-      if (sch) mmKeys.add(`${sch}|${r.event_ns}`);
+      mmKeys.add(`${dashSchool}|${r.event_ns}`);
     }
   }
   const mmKeyList = Array.from(mmKeys);
@@ -152,10 +147,6 @@ export async function GET(
     )
   );
 
-  // Préchargement des labels :
-  //  - mm_events filtré par couples (school_slug, event_ns) : Supabase
-  //    n'a pas de WHERE composé (a,b) IN ((..,..)) donc on charge en
-  //    bloc par les écoles concernées et on filtre côté JS.
   const involvedSchools = Array.from(
     new Set(mmKeyList.map((k) => k.split("|")[0]!))
   );
@@ -198,10 +189,8 @@ export async function GET(
     name: string;
     school_slug: string;
   }[]) ?? []) {
-    // En mode école-précise, on n'expose que les redirects de l'école
-    // courante (les autres écoles peuvent partager le même uuid en
-    // théorie, mais c'est un uuid donc unique : juste un garde-fou).
-    if (isEdh || r.school_slug === dashSchool) {
+    // On n'expose que les redirects de l'école courante.
+    if (r.school_slug === dashSchool) {
       redirectLabels.set(r.id, { name: r.name, school_slug: r.school_slug });
     }
   }
@@ -213,34 +202,21 @@ export async function GET(
     refsByStep.set(r.step_id, arr);
   }
 
-  function chipLabel(name: string, schoolSlug: string | null): string {
-    if (!isEdh || !schoolSlug) return name;
-    const sch = getSchoolBySlug(schoolSlug);
-    return `${sch?.name ?? schoolSlug} · ${name}`;
-  }
-
   async function computeRef(r: RefRow): Promise<ComputedRef> {
     if (r.step_type === "mm_event") {
       const evNs = r.event_ns!;
-      const refSchool = isEdh ? r.event_school_slug : dashSchool;
-      const key = refSchool ? `${refSchool}|${evNs}` : null;
-      const available = !!(key && mmLabels.has(key));
-      if (!available || !refSchool) {
+      const key = `${dashSchool}|${evNs}`;
+      const available = mmLabels.has(key);
+      if (!available) {
         return {
           step_type: "mm_event",
           ref_id: evNs,
           label: "(indisponible)",
           count: 0,
           available: false,
-          ...(isEdh && refSchool
-            ? {
-                school_slug: refSchool,
-                school_name: getSchoolBySlug(refSchool)?.name ?? refSchool,
-              }
-            : {}),
         };
       }
-      const meta = mmLabels.get(key!)!;
+      const meta = mmLabels.get(key)!;
       const isPhoneCarrier = meta.textLabel.length > 0;
 
       let count: number;
@@ -254,7 +230,7 @@ export async function GET(
         const { data: occRows, error: occErr } = await sb
           .from("mm_occurrences")
           .select("text_value")
-          .eq("school_slug", refSchool)
+          .eq("school_slug", dashSchool)
           .eq("event_ns", evNs)
           .gte("occurred_at", fromTs)
           .lt("occurred_at", toTs)
@@ -283,7 +259,7 @@ export async function GET(
         const { count: c } = await sb
           .from("mm_occurrences")
           .select("*", { count: "exact", head: true })
-          .eq("school_slug", refSchool)
+          .eq("school_slug", dashSchool)
           .eq("event_ns", evNs)
           .gte("occurred_at", fromTs)
           .lt("occurred_at", toTs);
@@ -294,17 +270,11 @@ export async function GET(
       return {
         step_type: "mm_event",
         ref_id: evNs,
-        label: chipLabel(meta.name, refSchool),
+        label: meta.name,
         count,
         available: true,
         meta_cost_eur: metaCostEur,
         ...(metaBreakdown ? { meta_breakdown: metaBreakdown } : {}),
-        ...(isEdh
-          ? {
-              school_slug: refSchool,
-              school_name: getSchoolBySlug(refSchool)?.name ?? refSchool,
-            }
-          : {}),
       };
     }
     const reId = r.redirect_event_id!;
@@ -327,16 +297,9 @@ export async function GET(
     return {
       step_type: "url_click",
       ref_id: reId,
-      label: chipLabel(meta.name, meta.school_slug),
+      label: meta.name,
       count: count ?? 0,
       available: true,
-      ...(isEdh
-        ? {
-            school_slug: meta.school_slug,
-            school_name:
-              getSchoolBySlug(meta.school_slug)?.name ?? meta.school_slug,
-          }
-        : {}),
     };
   }
 
@@ -418,19 +381,14 @@ export async function GET(
     );
 
     if (launchRef && launchRef.step_type === "mm_event" && launchRef.event_ns) {
-      const launchSchool = isEdh
-        ? launchRef.event_school_slug
-        : dashSchool;
-      const launchKey = launchSchool
-        ? `${launchSchool}|${launchRef.event_ns}`
-        : null;
-      const launchLabelMeta = launchKey ? mmLabels.get(launchKey) : null;
+      const launchKey = `${dashSchool}|${launchRef.event_ns}`;
+      const launchLabelMeta = mmLabels.get(launchKey);
 
-      if (launchSchool && launchLabelMeta) {
+      if (launchLabelMeta) {
         const { data: launchOccs } = await sb
           .from("mm_occurrences")
           .select("text_value")
-          .eq("school_slug", launchSchool)
+          .eq("school_slug", dashSchool)
           .eq("event_ns", launchRef.event_ns)
           .gte("occurred_at", fromTs)
           .lt("occurred_at", toTs)
@@ -458,23 +416,18 @@ export async function GET(
         let failedCount = 0;
         let failedLabel = "";
         if (failedRef && failedRef.step_type === "mm_event" && failedRef.event_ns) {
-          const failedSchool = isEdh
-            ? failedRef.event_school_slug
-            : dashSchool;
-          if (failedSchool) {
-            const failedKey = `${failedSchool}|${failedRef.event_ns}`;
-            const failedMeta = mmLabels.get(failedKey);
-            if (failedMeta) {
-              const { count: fc } = await sb
-                .from("mm_occurrences")
-                .select("*", { count: "exact", head: true })
-                .eq("school_slug", failedSchool)
-                .eq("event_ns", failedRef.event_ns)
-                .gte("occurred_at", fromTs)
-                .lt("occurred_at", toTs);
-              failedCount = fc ?? 0;
-              failedLabel = chipLabel(failedMeta.name, failedSchool);
-            }
+          const failedKey = `${dashSchool}|${failedRef.event_ns}`;
+          const failedMeta = mmLabels.get(failedKey);
+          if (failedMeta) {
+            const { count: fc } = await sb
+              .from("mm_occurrences")
+              .select("*", { count: "exact", head: true })
+              .eq("school_slug", dashSchool)
+              .eq("event_ns", failedRef.event_ns)
+              .gte("occurred_at", fromTs)
+              .lt("occurred_at", toTs);
+            failedCount = fc ?? 0;
+            failedLabel = failedMeta.name;
           }
         }
 
@@ -497,7 +450,7 @@ export async function GET(
             count: launchCount,
             cost_eur: launchCost,
             breakdown: launchBreakdown,
-            label: chipLabel(launchLabelMeta.name, launchSchool),
+            label: launchLabelMeta.name,
             event_ns: launchRef.event_ns,
             event_school_slug: launchRef.event_school_slug ?? null,
           },
