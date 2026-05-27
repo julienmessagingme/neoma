@@ -68,9 +68,15 @@ export function FunnelChart({ steps }: { steps: ComputedStep[] }) {
     string,
     number | string
   >;
+  // Tronque les labels du chart à ~24 chars pour éviter le chevauchement
+  // sur l'axe X quand un step porte un nom long (ex: "Lancement : Lancement
+  // Boost MSTP Prospects"). La table en dessous garde le label complet.
+  const truncate = (s: string, max = 24): string =>
+    s.length <= max ? s : s.slice(0, max - 1) + "…";
+
   const data: Row[] = steps.map((s, i) => {
     const row: Row = {
-      label: `${i + 1}. ${compactStepLabel(s)}`,
+      label: `${i + 1}. ${truncate(compactStepLabel(s))}`,
       __total__: s.count,
     };
     for (const ser of series) {

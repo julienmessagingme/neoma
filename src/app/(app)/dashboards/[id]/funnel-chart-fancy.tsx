@@ -29,8 +29,13 @@ export function FancyFunnelChart({ steps }: { steps: ComputedStep[] }) {
 
   if (steps.length === 0) return null;
 
+  // Tronque pour éviter que les labels longs (ex: "Lancement : <event>")
+  // débordent visuellement sur l'entonnoir.
+  const truncate = (s: string, max = 28): string =>
+    s.length <= max ? s : s.slice(0, max - 1) + "…";
+
   const data: FunnelDataPoint[] = steps.map((s) => ({
-    key: `${s.position + 1}. ${s.label}`,
+    key: `${s.position + 1}. ${truncate(s.label)}`,
     data: s.count,
   }));
 

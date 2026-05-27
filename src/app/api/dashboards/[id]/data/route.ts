@@ -429,10 +429,10 @@ export async function GET(
     };
 
     const launchStep = launchRefCfg
-      ? await synthStep(launchRefCfg, "🚀 Lancement")
+      ? await synthStep(launchRefCfg, "Lancement")
       : null;
     const failedStep = failedRefCfg
-      ? await synthStep(failedRefCfg, "❌ Failed")
+      ? await synthStep(failedRefCfg, "Échec")
       : null;
 
     if (launchStep) computed.unshift(launchStep);
