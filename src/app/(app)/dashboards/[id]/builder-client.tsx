@@ -1091,12 +1091,17 @@ function CampaignCostSummaryCard({
 }: {
   summary: CampaignCostSummary;
 }) {
+  const fmtEur = (n: number) =>
+    n.toLocaleString("fr-FR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
   return (
     <div className="bg-amber-50/40 border border-amber-200 rounded-lg p-4">
       <div className="text-xs uppercase text-amber-800 font-semibold tracking-wide mb-3">
         Synthèse coût Meta de la campagne
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1.4fr] gap-4 text-sm">
         <SummaryStat
           label="Envois lancés"
           value={summary.launch.count.toLocaleString("fr-FR")}
@@ -1120,21 +1125,24 @@ function CampaignCostSummaryCard({
               : "—"
           }
         />
-        <SummaryStat
-          label="Coût net Meta"
-          value={
+        {/* Coût NET META — mis en avant : fond ambre plein, typo XL, bouton détail. */}
+        <div className="bg-amber-200/60 border border-amber-300 rounded-lg px-4 py-3 flex flex-col justify-center">
+          <div className="text-[11px] uppercase tracking-wider text-amber-900 font-bold">
+            Coût net Meta
+          </div>
+          <div className="text-3xl font-bold text-amber-900 leading-tight my-1">
             <MetaCostButton
               amountEur={summary.net_cost_eur}
               breakdown={summary.net_breakdown}
               title="Coût net de la campagne — détail par pays"
             />
-          }
-          sub={
-            summary.failed
-              ? `(brut ${summary.launch.cost_eur.toFixed(2).replace(".", ",")} € − failed)`
-              : "= coût brut (pas de failed)"
-          }
-        />
+          </div>
+          <div className="text-[11px] text-amber-800/80 leading-snug">
+            {summary.failed
+              ? `brut ${fmtEur(summary.launch.cost_eur)} € − ${summary.failed.count.toLocaleString("fr-FR")} failed`
+              : "= coût brut (pas de failed)"}
+          </div>
+        </div>
       </div>
     </div>
   );
