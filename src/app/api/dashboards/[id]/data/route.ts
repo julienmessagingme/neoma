@@ -404,7 +404,8 @@ export async function GET(
 
     const synthStep = async (
       cfg: CampaignRefRow,
-      labelPrefix: string
+      labelPrefix: string,
+      role: "launch" | "failed"
     ): Promise<ComputedStep | null> => {
       if (cfg.step_type !== "mm_event" || !cfg.event_ns) return null;
       const synthRefRow: RefRow = {
@@ -425,14 +426,15 @@ export async function GET(
         refs: [cr],
         meta_cost_eur: cr.meta_cost_eur ?? null,
         ...(cr.meta_breakdown ? { meta_breakdown: cr.meta_breakdown } : {}),
+        synth_role: role,
       };
     };
 
     const launchStep = launchRefCfg
-      ? await synthStep(launchRefCfg, "Lancement")
+      ? await synthStep(launchRefCfg, "Lancement", "launch")
       : null;
     const failedStep = failedRefCfg
-      ? await synthStep(failedRefCfg, "Échec")
+      ? await synthStep(failedRefCfg, "Échec", "failed")
       : null;
 
     if (launchStep) computed.unshift(launchStep);

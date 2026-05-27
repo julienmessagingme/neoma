@@ -96,7 +96,14 @@ export function exportFunnelToExcel(args: {
   rows.push(header);
 
   steps.forEach((s, i) => {
-    const prev = i > 0 ? steps[i - 1].count : null;
+    // Même règle que dans FunnelTable : le step "Échec" synthétique se
+    // compare au Lancement (étape 1), pas au step précédent.
+    const prev =
+      i === 0
+        ? null
+        : s.synth_role === "failed"
+          ? first
+          : steps[i - 1].count;
     const convPrev =
       prev !== null && prev > 0 ? pct(s.count, prev) : i === 0 ? "—" : "—";
     const convFirst =

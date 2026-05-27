@@ -67,7 +67,18 @@ export function FunnelTable({ steps }: { steps: ComputedStep[] }) {
         </thead>
         <tbody>
           {steps.map((s, i) => {
-            const prev = i === 0 ? null : steps[i - 1].count;
+            // Pour le step "Échec" synthétique, on compare au Lancement
+            // (étape 1) plutôt qu'au step précédent — un échec WhatsApp
+            // est une dérivation du lancement, pas une suite du funnel.
+            // Le step précédent typique (un clic URL) n'est pas le parent
+            // logique : sans ce fix on aurait "160% vs précédent" (88/55)
+            // au lieu du vrai taux d'échec (88/941 = 9.4%).
+            const prev =
+              i === 0
+                ? null
+                : s.synth_role === "failed"
+                  ? first
+                  : steps[i - 1].count;
             const showBreakdown = s.refs.length > 1;
             return (
               <tr
