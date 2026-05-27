@@ -257,7 +257,7 @@ export function CampaignEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col sm:!max-w-4xl">
         <DialogHeader className="shrink-0">
           <DialogTitle>
             {mode === "new" ? "Nouvelle campagne" : "Éditer la campagne"}
@@ -331,7 +331,7 @@ export function CampaignEditorDialog({
                   className="w-48 h-8 text-sm"
                 />
               </div>
-              <div className="border rounded flex h-[280px]">
+              <div className="border rounded flex h-[400px]">
                 <RefList
                   title={`Custom events MM (${filteredBodyMm.length})`}
                   items={filteredBodyMm}
@@ -575,7 +575,7 @@ function RefRow({
   return (
     <li>
       <label
-        className="flex items-center gap-2 px-3 py-1 hover:bg-zinc-50 cursor-pointer text-sm"
+        className="flex items-start gap-2 px-3 py-1.5 hover:bg-zinc-50 cursor-pointer text-sm"
         title={
           item.school_name ? `[${item.school_name}] ${item.label}` : item.label
         }
@@ -584,14 +584,14 @@ function RefRow({
           type="checkbox"
           checked={checked}
           onChange={() => onToggle(item)}
-          className="shrink-0"
+          className="shrink-0 mt-0.5"
         />
         {!hideSchoolChip && item.school_name && (
-          <span className="text-[10px] font-mono px-1 py-0 rounded bg-amber-100 text-amber-800 shrink-0">
+          <span className="text-[10px] font-mono px-1 py-0 rounded bg-amber-100 text-amber-800 shrink-0 mt-0.5">
             {item.school_name}
           </span>
         )}
-        <span className="truncate flex-1">{item.label}</span>
+        <span className="flex-1 break-words leading-snug">{item.label}</span>
       </label>
     </li>
   );
