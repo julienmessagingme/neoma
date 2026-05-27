@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { lookupSlug } from "@/lib/redirect/lookup";
 import { checkRate } from "@/lib/redirect/rate-limit";
 import { getClientIp } from "@/lib/redirect/client-ip";
-import { isLinkPreviewBot } from "@/lib/redirect/link-preview-bot";
+import { isLinkPreviewBotRich } from "@/lib/redirect/link-preview-bot";
 import { getSupabase } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
@@ -44,8 +44,10 @@ export async function GET(
   // Skip count pour les bots de link-preview (Meta/WhatsApp/Twitter/etc.)
   // qui hit l'URL pour générer la card preview sans vraie navigation
   // utilisateur. On répond quand même 302 — sinon la preview ne se
-  // génère pas chez le destinataire. Voir lib/redirect/link-preview-bot.
-  if (!isLinkPreviewBot(userAgent)) {
+  // génère pas chez le destinataire. La version "Rich" check aussi l'IP
+  // (range Meta) + le Referer (facebook.com), car depuis 2024 Meta spoof
+  // l'UA d'un vrai navigateur mobile. Voir lib/redirect/link-preview-bot.
+  if (!isLinkPreviewBotRich({ userAgent, ip: ip === "unknown" ? null : ip, referer })) {
     // Fire-and-forget click insert (don't block redirect)
     void getSupabase()
       .from("clicks")
