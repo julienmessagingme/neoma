@@ -130,11 +130,45 @@ export async function GET(
 
   const refRows = (refsData ?? []) as RefRow[];
 
+  // Si le dashboard est lié à une campagne, on récupère ses refs maintenant
+  // pour pouvoir inclure les event_ns du launch/failed dans mmLabels — sinon
+  // un funnel constitué uniquement d'URLs (zéro mm_event en step) verrait
+  // son bloc campaign_summary skippé faute de label disponible.
+  type CampaignRefRow = {
+    step_type: StepType;
+    event_ns: string | null;
+    redirect_event_id: string | null;
+    event_school_slug: string | null;
+    role: "launch" | "body" | "failed";
+  };
+  let campaignRefs: CampaignRefRow[] = [];
+  if (dash.campaign_id) {
+    const { data: cRefs } = await sb
+      .from("campaign_refs")
+      .select(
+        "step_type, event_ns, redirect_event_id, event_school_slug, role"
+      )
+      .eq("campaign_id", dash.campaign_id);
+    campaignRefs = (cRefs ?? []) as CampaignRefRow[];
+  }
+
   // Pour chaque mm_event ref, l'école est celle du dashboard (single-school).
   type MmKey = string; // `${school}|${event_ns}`
   const mmKeys = new Set<MmKey>();
   for (const r of refRows) {
     if (r.step_type === "mm_event" && r.event_ns) {
+      mmKeys.add(`${dashSchool}|${r.event_ns}`);
+    }
+  }
+  // Seed mmKeys avec les events launch/failed de la campagne pour garantir
+  // qu'on charge bien leur label, même si la campagne n'a aucun mm_event
+  // drag-and-droppé en step (cas d'un funnel 100% URL clicks).
+  for (const r of campaignRefs) {
+    if (
+      (r.role === "launch" || r.role === "failed") &&
+      r.step_type === "mm_event" &&
+      r.event_ns
+    ) {
       mmKeys.add(`${dashSchool}|${r.event_ns}`);
     }
   }
@@ -363,22 +397,11 @@ export async function GET(
   // Si le dashboard est lié à une campagne avec un launch défini, on
   // calcule le coût Meta brut (lancement), le failed éventuel, et le
   // net (= lancement scaled par le ratio des envois réussis).
+  // Réutilise les `campaignRefs` chargés plus haut pour le seed mmKeys.
   let campaignSummary: CampaignCostSummary | null = null;
   if (dash.campaign_id) {
-    const { data: campaignRefs } = await sb
-      .from("campaign_refs")
-      .select(
-        "step_type, event_ns, event_school_slug, role"
-      )
-      .eq("campaign_id", dash.campaign_id)
-      .in("role", ["launch", "failed"]);
-
-    const launchRef = (campaignRefs ?? []).find(
-      (r) => r.role === "launch"
-    );
-    const failedRef = (campaignRefs ?? []).find(
-      (r) => r.role === "failed"
-    );
+    const launchRef = campaignRefs.find((r) => r.role === "launch");
+    const failedRef = campaignRefs.find((r) => r.role === "failed");
 
     if (launchRef && launchRef.step_type === "mm_event" && launchRef.event_ns) {
       const launchKey = `${dashSchool}|${launchRef.event_ns}`;
