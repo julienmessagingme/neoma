@@ -393,6 +393,57 @@ export async function GET(
     })
   );
 
+  // --- Injection launch/failed comme steps synthétiques (Phase 25.5) ---
+  // Le dashboard ne stocke que les "body steps" en DB. Pour l'affichage du
+  // funnel d'une campagne, on préfixe la step launch et on suffixe la step
+  // failed, pour avoir un funnel complet "Envoyés → … → Échoués" dans le
+  // chart et la table. Réutilise computeRef pour avoir le count + coût Meta.
+  if (dash.campaign_id) {
+    const launchRefCfg = campaignRefs.find((r) => r.role === "launch");
+    const failedRefCfg = campaignRefs.find((r) => r.role === "failed");
+
+    const synthStep = async (
+      cfg: CampaignRefRow,
+      labelPrefix: string
+    ): Promise<ComputedStep | null> => {
+      if (cfg.step_type !== "mm_event" || !cfg.event_ns) return null;
+      const synthRefRow: RefRow = {
+        id: `synth-${cfg.role}`,
+        step_id: `synth-${cfg.role}`,
+        ref_position: 0,
+        step_type: "mm_event",
+        event_ns: cfg.event_ns,
+        redirect_event_id: null,
+        event_school_slug: cfg.event_school_slug,
+      };
+      const cr = await computeRef(synthRefRow);
+      return {
+        position: 0, // renuméroté en bas
+        label: `${labelPrefix} : ${cr.label}`,
+        count: cr.available ? cr.count : 0,
+        available: cr.available,
+        refs: [cr],
+        meta_cost_eur: cr.meta_cost_eur ?? null,
+        ...(cr.meta_breakdown ? { meta_breakdown: cr.meta_breakdown } : {}),
+      };
+    };
+
+    const launchStep = launchRefCfg
+      ? await synthStep(launchRefCfg, "🚀 Lancement")
+      : null;
+    const failedStep = failedRefCfg
+      ? await synthStep(failedRefCfg, "❌ Failed")
+      : null;
+
+    if (launchStep) computed.unshift(launchStep);
+    if (failedStep) computed.push(failedStep);
+    // Renumérote pour avoir 1..N continu (sinon le bar chart / table affiche
+    // les positions originales et c'est confus).
+    computed.forEach((s, i) => {
+      s.position = i + 1;
+    });
+  }
+
   // --- Synthèse campagne (Phase 25) ---
   // Si le dashboard est lié à une campagne avec un launch défini, on
   // calcule le coût Meta brut (lancement), le failed éventuel, et le
