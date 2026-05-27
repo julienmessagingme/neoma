@@ -161,10 +161,30 @@ export async function exportFunnelToPDF(args: {
     import("jspdf"),
   ]);
 
+  // L'élément peut avoir une largeur de contenu (scrollWidth) plus grande
+  // que sa largeur visible (clientWidth) si une table dépasse — typique
+  // du tableau funnel avec colonne Coût Meta. Sans override, html-to-image
+  // capture seulement la zone visible et tronque la droite du tableau.
+  // On force la capture à la largeur scrollWidth et on inhibe l'overflow
+  // pour que tout le contenu soit dessiné.
+  const fullWidth = Math.max(element.scrollWidth, element.clientWidth);
+  const fullHeight = Math.max(element.scrollHeight, element.clientHeight);
+
   const dataUrl = await toPng(element, {
     backgroundColor: "#ffffff",
     pixelRatio: 2,
     cacheBust: true,
+    width: fullWidth,
+    height: fullHeight,
+    canvasWidth: fullWidth,
+    canvasHeight: fullHeight,
+    style: {
+      // Désactive l'overflow scroll/clip pendant la capture, et fixe la
+      // width pour que le layout interne ne déborde pas hors du clone.
+      overflow: "visible",
+      width: `${fullWidth}px`,
+      maxWidth: "none",
+    },
   });
 
   // Récupère les dimensions natives de l'image pour calculer le ratio.
