@@ -38,7 +38,11 @@ function fmtNum(v: unknown): string {
   return v.toLocaleString("fr-FR");
 }
 
-export function FunnelChart({ steps }: { steps: ComputedStep[] }) {
+export function FunnelChart({ steps: rawSteps }: { steps: ComputedStep[] }) {
+  if (rawSteps.length === 0) return null;
+  // Le step "Échec" synthétique ne s'affiche pas comme une barre : son
+  // volume est rapporté en sous-ligne du step Lancement dans la table.
+  const steps = rawSteps.filter((s) => s.synth_role !== "failed");
   if (steps.length === 0) return null;
 
   // Collecte les events distincts (par label) à travers toutes les étapes,

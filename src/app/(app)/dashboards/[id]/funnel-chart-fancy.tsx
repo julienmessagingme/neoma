@@ -22,11 +22,19 @@ interface FunnelDataPoint {
  * Stays light to fit the rest of the dashboard while still letting the
  * purple glow pop.
  */
-export function FancyFunnelChart({ steps }: { steps: ComputedStep[] }) {
+export function FancyFunnelChart({
+  steps: rawSteps,
+}: {
+  steps: ComputedStep[];
+}) {
   const [hovered, setHovered] = useState<
     { index: number; x: number; y: number } | null
   >(null);
 
+  if (rawSteps.length === 0) return null;
+  // Le step "Échec" synthétique n'apparaît pas comme une étape de l'entonnoir :
+  // son volume est rapporté en sous-ligne du Lancement dans la table.
+  const steps = rawSteps.filter((s) => s.synth_role !== "failed");
   if (steps.length === 0) return null;
 
   // Tronque pour éviter que les labels longs (ex: "Lancement : <event>")

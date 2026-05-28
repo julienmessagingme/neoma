@@ -77,13 +77,16 @@ export function exportFunnelToExcel(args: {
     return;
   }
 
-  // Funnel (défaut)
-  const first = steps[0]?.count ?? 0;
-  const hasMetaCost = steps.some(
+  // Funnel (défaut). Le step "Échec" synthétique est sorti du flux principal :
+  // son volume est ajouté en sous-ligne du Lancement (cohérent avec l'UI table).
+  const failedStep = steps.find((s) => s.synth_role === "failed") ?? null;
+  const visibleSteps = steps.filter((s) => s.synth_role !== "failed");
+  const first = visibleSteps[0]?.count ?? 0;
+  const hasMetaCost = visibleSteps.some(
     (s) => s.meta_cost_eur != null && s.meta_cost_eur > 0
   );
   const totalMetaCost = hasMetaCost
-    ? steps.reduce((acc, s) => acc + (s.meta_cost_eur ?? 0), 0)
+    ? visibleSteps.reduce((acc, s) => acc + (s.meta_cost_eur ?? 0), 0)
     : 0;
 
   const header: Array<string | number> = [
@@ -95,15 +98,8 @@ export function exportFunnelToExcel(args: {
   if (hasMetaCost) header.push("Coût Meta (EUR)");
   rows.push(header);
 
-  steps.forEach((s, i) => {
-    // Même règle que dans FunnelTable : le step "Échec" synthétique se
-    // compare au Lancement (étape 1), pas au step précédent.
-    const prev =
-      i === 0
-        ? null
-        : s.synth_role === "failed"
-          ? first
-          : steps[i - 1].count;
+  visibleSteps.forEach((s, i) => {
+    const prev = i === 0 ? null : visibleSteps[i - 1].count;
     const convPrev =
       prev !== null && prev > 0 ? pct(s.count, prev) : i === 0 ? "—" : "—";
     const convFirst =
@@ -113,11 +109,33 @@ export function exportFunnelToExcel(args: {
     }`;
     const row: Array<string | number> = [label, s.count, convPrev, convFirst];
     if (hasMetaCost) {
-      // Nombre natif Excel pour permettre les calculs/format conditionnels
-      // côté tableur. Vide si pas de coût pour cette étape.
       row.push(s.meta_cost_eur != null ? Number(s.meta_cost_eur.toFixed(4)) : "");
     }
     rows.push(row);
+
+    // Sous-lignes "failed" + "envois réussis" sous le step Lancement.
+    if (s.synth_role === "launch" && failedStep && failedStep.available) {
+      const failedLabel = failedStep.label.replace(/^Échec\s*:\s*/, "");
+      const failedRow: Array<string | number> = [
+        `    − ${failedLabel} (failed WhatsApp)`,
+        failedStep.count,
+        s.count > 0
+          ? `${((failedStep.count / s.count) * 100).toFixed(1)}%`
+          : "",
+        "",
+      ];
+      if (hasMetaCost) failedRow.push("");
+      rows.push(failedRow);
+      const netRow: Array<string | number> = [
+        `    = Envois réussis (net)`,
+        s.count - failedStep.count,
+        "",
+        "",
+      ];
+      if (hasMetaCost) netRow.push("");
+      rows.push(netRow);
+    }
+
     if (s.refs.length > 1) {
       s.refs.forEach((r) => {
         const subRow: Array<string | number> = [

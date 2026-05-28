@@ -34,8 +34,14 @@ function mergeBreakdowns(
   );
 }
 
-export function FunnelTable({ steps }: { steps: ComputedStep[] }) {
-  if (steps.length === 0) return null;
+export function FunnelTable({ steps: rawSteps }: { steps: ComputedStep[] }) {
+  if (rawSteps.length === 0) return null;
+  // Le step "Échec" synthétique n'est pas rendu comme une ligne séparée :
+  // son volume est affiché en sous-ligne du step "Lancement" (équivalent
+  // d'un breakdown multi-refs). Le coût Meta de l'échec reste 0 (le coût
+  // brut est sur le launch) donc rien à reporter côté coûts.
+  const failedStep = rawSteps.find((s) => s.synth_role === "failed") ?? null;
+  const steps = rawSteps.filter((s) => s.synth_role !== "failed");
   const first = steps[0]?.count ?? 0;
   // Colonne « Coût Meta » affichée uniquement si au moins une étape porte
   // un coût. Évite une colonne vide dans 99 % des funnels.
@@ -67,19 +73,11 @@ export function FunnelTable({ steps }: { steps: ComputedStep[] }) {
         </thead>
         <tbody>
           {steps.map((s, i) => {
-            // Pour le step "Échec" synthétique, on compare au Lancement
-            // (étape 1) plutôt qu'au step précédent — un échec WhatsApp
-            // est une dérivation du lancement, pas une suite du funnel.
-            // Le step précédent typique (un clic URL) n'est pas le parent
-            // logique : sans ce fix on aurait "160% vs précédent" (88/55)
-            // au lieu du vrai taux d'échec (88/941 = 9.4%).
-            const prev =
-              i === 0
-                ? null
-                : s.synth_role === "failed"
-                  ? first
-                  : steps[i - 1].count;
+            const prev = i === 0 ? null : steps[i - 1].count;
             const showBreakdown = s.refs.length > 1;
+            // Sous-ligne "failed" affichée sous le step Lancement.
+            const showFailedAnnotation =
+              s.synth_role === "launch" && failedStep && failedStep.available;
             return (
               <tr
                 key={`step-${s.position}`}
@@ -95,6 +93,33 @@ export function FunnelTable({ steps }: { steps: ComputedStep[] }) {
                       </span>
                     )}
                   </div>
+                  {showFailedAnnotation && failedStep && (
+                    <ul className="mt-1 ml-6 text-xs text-red-600 space-y-0.5">
+                      <li className="flex justify-between gap-4">
+                        <span className="truncate">
+                          <span className="text-red-400 mr-1">−</span>
+                          {failedStep.label.replace(/^Échec\s*:\s*/, "")} (failed WhatsApp)
+                        </span>
+                        <span className="tabular-nums flex items-baseline gap-2 shrink-0">
+                          <span>{failedStep.count}</span>
+                          {s.count > 0 && (
+                            <span className="text-red-400 text-[10px]">
+                              ({((failedStep.count / s.count) * 100).toFixed(1)}%)
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                      <li className="flex justify-between gap-4 text-zinc-600 font-medium">
+                        <span className="truncate">
+                          <span className="text-zinc-400 mr-1">=</span>
+                          Envois réussis (net)
+                        </span>
+                        <span className="tabular-nums shrink-0">
+                          {(s.count - failedStep.count).toLocaleString("fr-FR")}
+                        </span>
+                      </li>
+                    </ul>
+                  )}
                   {showBreakdown && (
                     <ul className="mt-1 ml-6 text-xs text-zinc-500 space-y-0.5">
                       {s.refs.map((r, ri) => {
