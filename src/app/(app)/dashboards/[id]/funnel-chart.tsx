@@ -38,19 +38,32 @@ function fmtNum(v: unknown): string {
   return v.toLocaleString("fr-FR");
 }
 
+/** Couleur fixe pour le segment "Échec WhatsApp" : rouge contrast, jamais
+ *  réutilisée pour d'autres events (pour qu'on reconnaisse au coup d'œil
+ *  la part d'envois ratés dans la barre du Lancement). */
+const FAILED_COLOR = "#dc2626"; // red-600
+const FAILED_SERIES_LABEL = "Échec WhatsApp";
+
 export function FunnelChart({ steps: rawSteps }: { steps: ComputedStep[] }) {
   if (rawSteps.length === 0) return null;
-  // Le step "Échec" synthétique ne s'affiche pas comme une barre : son
-  // volume est rapporté en sous-ligne du step Lancement dans la table.
+  const failedStep = rawSteps.find((s) => s.synth_role === "failed") ?? null;
+  // Le step "Échec" synthétique ne s'affiche pas comme une barre séparée :
+  // il est splitté dans la barre du Lancement en 2 segments stackés
+  // (net + failed) pour visualiser la part d'envois ratés.
   const steps = rawSteps.filter((s) => s.synth_role !== "failed");
   if (steps.length === 0) return null;
 
   // Collecte les events distincts (par label) à travers toutes les étapes,
-  // dans l'ordre d'apparition. Chacun gagne une couleur stable.
+  // dans l'ordre d'apparition. Chacun gagne une couleur stable. On exclut
+  // les events de la barre Lancement si on va la splitter en net/failed
+  // (sinon on aurait une série en double avec le label original du launch).
+  const willSplitLaunch =
+    failedStep !== null && failedStep.available && failedStep.count > 0;
   type Series = { label: string; color: string };
   const series: Series[] = [];
   const seen = new Set<string>();
   for (const s of steps) {
+    if (willSplitLaunch && s.synth_role === "launch") continue;
     for (const r of s.refs) {
       if (!r.available || seen.has(r.label)) continue;
       seen.add(r.label);
@@ -59,6 +72,20 @@ export function FunnelChart({ steps: rawSteps }: { steps: ComputedStep[] }) {
         color: EVENT_COLORS[series.length % EVENT_COLORS.length],
       });
     }
+  }
+  // Si on split la barre Lancement, on ajoute 2 séries dédiées : net (couleur
+  // du Lancement violet par défaut) + failed (rouge).
+  if (willSplitLaunch) {
+    const launchStep = steps.find((s) => s.synth_role === "launch");
+    const netLabel = launchStep
+      ? `Envois réussis (${launchStep.refs[0]?.label ?? "Lancement"})`
+      : "Envois réussis";
+    // Série net en tête → tracée AU-DESSUS du failed dans la pile
+    // (le 1er ajouté est rendu en bas). On veut le rouge en bas, le net dessus.
+    series.unshift({ label: FAILED_SERIES_LABEL, color: FAILED_COLOR });
+    series.unshift({ label: netLabel, color: EVENT_COLORS[0] });
+    seen.add(netLabel);
+    seen.add(FAILED_SERIES_LABEL);
   }
   // Cas dégénéré : aucun event available → on rend quand même quelque
   // chose pour éviter un chart vide cryptique.
@@ -73,8 +100,7 @@ export function FunnelChart({ steps: rawSteps }: { steps: ComputedStep[] }) {
     number | string
   >;
   // Tronque les labels du chart à ~24 chars pour éviter le chevauchement
-  // sur l'axe X quand un step porte un nom long (ex: "Lancement : Lancement
-  // Boost MSTP Prospects"). La table en dessous garde le label complet.
+  // sur l'axe X quand un step porte un nom long.
   const truncate = (s: string, max = 24): string =>
     s.length <= max ? s : s.slice(0, max - 1) + "…";
 
@@ -84,6 +110,20 @@ export function FunnelChart({ steps: rawSteps }: { steps: ComputedStep[] }) {
       __total__: s.count,
     };
     for (const ser of series) {
+      // Cas spécial : barre Lancement splittée en net/failed.
+      if (willSplitLaunch && s.synth_role === "launch" && failedStep) {
+        if (ser.label === FAILED_SERIES_LABEL) {
+          row[ser.label] = failedStep.count;
+          continue;
+        }
+        // La série "Envois réussis (…)" porte le net = launch - failed.
+        if (ser.label.startsWith("Envois réussis")) {
+          row[ser.label] = Math.max(0, s.count - failedStep.count);
+          continue;
+        }
+        row[ser.label] = 0;
+        continue;
+      }
       const ref = s.refs.find(
         (r) => r.available && r.label === ser.label
       );
