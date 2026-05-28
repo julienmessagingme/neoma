@@ -499,6 +499,7 @@ export function BuilderClient({
         toDate: computed.to,
         steps: computed.steps,
         type: dashboard.type,
+        campaignSummary: computed.campaign_summary ?? null,
       });
     } catch {
       toast.error("Erreur d'export Excel");
@@ -1060,7 +1061,10 @@ export function BuilderClient({
                     ) : (
                       <FancyFunnelChart steps={computed.steps} />
                     )}
-                    <FunnelTable steps={computed.steps} />
+                    <FunnelTable
+                      steps={computed.steps}
+                      campaignSummary={computed.campaign_summary ?? null}
+                    />
                   </>
                 )}
               </div>

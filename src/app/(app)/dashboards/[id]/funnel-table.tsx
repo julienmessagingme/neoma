@@ -3,6 +3,7 @@
 import type {
   ComputedStep,
   MetaCostBreakdownItem,
+  CampaignCostSummary,
 } from "@/lib/dashboards/types";
 import { compactStepLabel } from "@/lib/dashboards/types";
 import { MetaCostButton } from "@/components/meta-cost-breakdown";
@@ -34,7 +35,13 @@ function mergeBreakdowns(
   );
 }
 
-export function FunnelTable({ steps: rawSteps }: { steps: ComputedStep[] }) {
+export function FunnelTable({
+  steps: rawSteps,
+  campaignSummary = null,
+}: {
+  steps: ComputedStep[];
+  campaignSummary?: CampaignCostSummary | null;
+}) {
   if (rawSteps.length === 0) return null;
   // Le step "Échec" synthétique n'est pas rendu comme une ligne séparée :
   // son volume est affiché en sous-ligne du step "Lancement" (équivalent
@@ -43,15 +50,45 @@ export function FunnelTable({ steps: rawSteps }: { steps: ComputedStep[] }) {
   const failedStep = rawSteps.find((s) => s.synth_role === "failed") ?? null;
   const steps = rawSteps.filter((s) => s.synth_role !== "failed");
   const first = steps[0]?.count ?? 0;
+  // Si on a une synthèse campagne avec failed, le coût Meta affiché pour
+  // le step Lancement doit être le NET (lancement − failed), pas le brut.
+  // Sinon le tableau et l'encadré du haut affichent 2 chiffres différents
+  // (brut 68,60 € en bas vs net 61,99 € en haut).
+  const useNetForLaunch =
+    campaignSummary !== null && campaignSummary.failed !== null;
+  // Effective cost per step : remplace le brut par le net pour le launch.
+  const stepCost = (s: ComputedStep): number | null => {
+    if (useNetForLaunch && s.synth_role === "launch") {
+      return campaignSummary?.net_cost_eur ?? null;
+    }
+    return s.meta_cost_eur ?? null;
+  };
+  const stepBreakdown = (
+    s: ComputedStep
+  ): MetaCostBreakdownItem[] | undefined => {
+    if (useNetForLaunch && s.synth_role === "launch") {
+      return campaignSummary?.net_breakdown ?? undefined;
+    }
+    return s.meta_breakdown;
+  };
   // Colonne « Coût Meta » affichée uniquement si au moins une étape porte
   // un coût. Évite une colonne vide dans 99 % des funnels.
-  const hasMetaCost = steps.some(
-    (s) => s.meta_cost_eur != null && s.meta_cost_eur > 0
-  );
+  const hasMetaCost = steps.some((s) => {
+    const c = stepCost(s);
+    return c != null && c > 0;
+  });
   const totalMetaCost = hasMetaCost
-    ? steps.reduce((acc, s) => acc + (s.meta_cost_eur ?? 0), 0)
+    ? steps.reduce((acc, s) => acc + (stepCost(s) ?? 0), 0)
     : 0;
-  const totalBreakdown = hasMetaCost ? mergeBreakdowns(steps) : [];
+  const totalBreakdown = hasMetaCost
+    ? mergeBreakdowns(
+        steps.map((s) => ({
+          ...s,
+          meta_cost_eur: stepCost(s),
+          meta_breakdown: stepBreakdown(s),
+        }))
+      )
+    : [];
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -165,19 +202,39 @@ export function FunnelTable({ steps: rawSteps }: { steps: ComputedStep[] }) {
                 <td className="py-2 pr-4 text-right tabular-nums text-zinc-600">
                   {i === 0 ? "—" : pct(s.count, first)}
                 </td>
-                {hasMetaCost && (
-                  <td className="py-2 pr-4 text-right tabular-nums text-zinc-600">
-                    {s.meta_cost_eur != null && s.meta_cost_eur > 0 ? (
-                      <MetaCostButton
-                        amountEur={s.meta_cost_eur}
-                        breakdown={s.meta_breakdown}
-                        title={`Coût Meta — étape ${i + 1} (${compactStepLabel(s)})`}
-                      />
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                )}
+                {hasMetaCost &&
+                  (() => {
+                    const cost = stepCost(s);
+                    const breakdown = stepBreakdown(s);
+                    const isNetOverride =
+                      useNetForLaunch && s.synth_role === "launch";
+                    return (
+                      <td className="py-2 pr-4 text-right tabular-nums text-zinc-600">
+                        {cost != null && cost > 0 ? (
+                          <div className="flex flex-col items-end">
+                            <MetaCostButton
+                              amountEur={cost}
+                              breakdown={breakdown}
+                              title={`Coût Meta — étape ${i + 1} (${compactStepLabel(s)})`}
+                            />
+                            {isNetOverride && (
+                              <span className="text-[10px] text-zinc-400">
+                                net (brut{" "}
+                                {(s.meta_cost_eur ?? 0)
+                                  .toLocaleString("fr-FR", {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}{" "}
+                                €)
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    );
+                  })()}
               </tr>
             );
           })}
