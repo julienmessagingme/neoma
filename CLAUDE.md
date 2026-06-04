@@ -72,4 +72,4 @@ NPM : proxy host `neoma.messagingme.app` → `http://neoma-app:3000`, SSL Let's 
 - **Pas de RLS Supabase.** Service-role server-side uniquement.
 - **UI 100% française** dans les strings affichées.
 - **Export PDF : `html-to-image`, pas `html2canvas`** (Tailwind v4 + `oklch()`).
-- **Logo `/public/logos/neoma.png`** — placeholder copié depuis EDH au moment du scaffold, à remplacer par le vrai logo Neoma.
+- **Logo `/public/logos/neoma.png`** — vrai logo NEOMA Business School (violet sur banderole). Affiché sur la login page et dans le header.
