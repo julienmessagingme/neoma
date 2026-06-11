@@ -650,25 +650,18 @@ export function BuilderClient({
 
   // Palette filtrée pour l'affichage uniquement (sidebar + AddRefMenu).
   // La palette complète `palette` reste utilisée par `resolveRef` et
-  // `paletteItemFor` pour résoudre les refs déjà présentes dans les
-  // étapes — sinon un event "Etape 1" non porteur de texte serait
-  // marqué "(indisponible)" dans un pie chart juste parce que la palette
-  // d'affichage est filtrée.
+  // `paletteItemFor` pour résoudre les refs déjà présentes dans les étapes.
   //
-  // 2 filtres successifs appliqués SEULEMENT à `displayedPalette` :
-  //   1. Mode pie → garder uniquement les events porteurs (text_label
-  //      non vide) ; URLs exclues (pas de valeur portée côté redirect).
-  //   2. Filtre campagne (campaignKeySet) → restreindre aux briques de
-  //      la campagne courante.
+  // Le pie chart compare les VOLUMES (counts) de plusieurs sources, une part
+  // par source (cf. PieChartViz) : n'importe quel custom event OU clic URL est
+  // une part valide. On ne filtre donc PAS la palette en mode pie. (Ancien
+  // bug : on ne gardait que les events porteurs de texte et on excluait TOUTES
+  // les URLs → la plupart des events et tous les clics URL étaient introuvables
+  // au moment de bâtir un pie chart.)
+  //
+  // Seul filtre légitime ici : la campagne courante (campaignKeySet) restreint
+  // la palette aux briques de la campagne.
   let displayedPalette: Palette = palette;
-  if (dashboard.type === "pie") {
-    displayedPalette = {
-      mmEvents: displayedPalette.mmEvents.filter(
-        (p) => p.has_text_value === true
-      ),
-      redirectEvents: [],
-    };
-  }
   if (campaignKeySet) {
     displayedPalette = {
       mmEvents: displayedPalette.mmEvents.filter((p) =>
