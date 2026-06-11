@@ -13,7 +13,7 @@ beforeEach(() => {
 });
 
 describe("syncSchool watermark", () => {
-  it("only inserts occurrences with id > watermark and stops at first older id", async () => {
+  it("passes the watermark as start_id cursor and ingests every returned row", async () => {
     const clientMod = await import("@/lib/messagingme/client");
     vi.spyOn(clientMod, "listEvents").mockResolvedValue([
       {
@@ -25,45 +25,55 @@ describe("syncSchool watermark", () => {
         number_label: "",
       },
     ]);
-    vi.spyOn(clientMod, "iterOccurrences").mockImplementation(async function* () {
-      yield [
-        {
-          id: 100,
-          user_ns: "u",
-          event_ns: "ns1",
-          text_value: "",
-          price_value: "0",
-          number_value: 1,
-          created_at: "2026-04-01T00:00:00Z",
-        },
-        {
-          id: 99,
-          user_ns: "u",
-          event_ns: "ns1",
-          text_value: "",
-          price_value: "0",
-          number_value: 1,
-          created_at: "2026-03-31T00:00:00Z",
-        },
-      ];
-      yield [
-        {
-          id: 98,
-          user_ns: "u",
-          event_ns: "ns1",
-          text_value: "",
-          price_value: "0",
-          number_value: 1,
-          created_at: "2026-03-30T00:00:00Z",
-        },
-      ];
-    });
+
+    // The client now filters server-side via start_id, so the generator only
+    // ever yields rows with id > watermark, ordered ascending. Capture the
+    // startId arg to prove sync threads the watermark through.
+    let receivedStartId: number | undefined;
+    vi.spyOn(clientMod, "iterOccurrences").mockImplementation(
+      async function* (_opts, _eventNs, startId) {
+        receivedStartId = startId;
+        yield [
+          {
+            id: 100,
+            user_ns: "u",
+            event_ns: "ns1",
+            text_value: "",
+            price_value: "0",
+            number_value: 1,
+            created_at: "2026-04-01T00:00:00Z",
+          },
+          {
+            id: 101,
+            user_ns: "u",
+            event_ns: "ns1",
+            text_value: "",
+            price_value: "0",
+            number_value: 1,
+            created_at: "2026-04-02T00:00:00Z",
+          },
+        ];
+        yield [
+          {
+            id: 102,
+            user_ns: "u",
+            event_ns: "ns1",
+            text_value: "",
+            price_value: "0",
+            number_value: 1,
+            created_at: "2026-04-03T00:00:00Z",
+          },
+        ];
+      }
+    );
 
     const inserts: { id: number }[] = [];
     const upserts: { table: string; row: Record<string, unknown> }[] = [];
 
-    const { getSupabase } = await import("@/lib/supabase/service");
-    (getSupabase as unknown as { mockReturnValue: (v: unknown) => void }).mockReturnValue({
+    const { getSupabaseScoped } = await import("@/lib/supabase/service");
+    (
+      getSupabaseScoped as unknown as { mockReturnValue: (v: unknown) => void }
+    ).mockReturnValue({
       from: (t: string) => {
         if (t === "mm_events") {
           return {
@@ -87,7 +97,10 @@ describe("syncSchool watermark", () => {
               eq: () => ({
                 eq: () => ({
                   maybeSingle: () =>
-                    Promise.resolve({ data: { last_occurrence_id: 99 }, error: null }),
+                    Promise.resolve({
+                      data: { last_occurrence_id: 99 },
+                      error: null,
+                    }),
                 }),
               }),
             }),
@@ -107,14 +120,17 @@ describe("syncSchool watermark", () => {
       "tok"
     );
 
-    // Watermark was 99 → only id 100 should be inserted, iteration must stop
-    // at id 99 (id 98 should never reach the DB).
-    expect(inserts.map((r) => r.id)).toEqual([100]);
+    // Watermark (99) must be forwarded as the start_id cursor.
+    expect(receivedStartId).toBe(99);
 
-    // Watermark must have been bumped to 100.
+    // Every row the API returns is new (id > watermark) → all ingested,
+    // across both pages, with NO early-stop.
+    expect(inserts.map((r) => r.id)).toEqual([100, 101, 102]);
+
+    // Watermark must advance to the highest id seen.
     const stateUpserts = upserts.filter((u) => u.table === "mm_sync_state");
     const watermarkUpdate = stateUpserts.find(
-      (u) => u.row.last_occurrence_id === 100
+      (u) => u.row.last_occurrence_id === 102
     );
     expect(watermarkUpdate).toBeDefined();
   });

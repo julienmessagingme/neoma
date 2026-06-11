@@ -55,7 +55,7 @@ export async function listEvents(opts: ClientOpts): Promise<MmEvent[]> {
   let page = 1;
   while (true) {
     const r = await fetchWithRetry(
-      `${opts.base}/flow/custom-events?page=${page}`,
+      `${opts.base}/flow/custom-events?limit=100&page=${page}`,
       {
         headers: {
           Authorization: `Bearer ${opts.token}`,
@@ -79,19 +79,25 @@ export async function listEvents(opts: ClientOpts): Promise<MmEvent[]> {
 }
 
 /**
- * Iterates occurrences of an event, page by page. The API returns rows
- * ordered most-recent first by default — the sync logic relies on this to
- * stop early once it encounters an id <= last watermark.
+ * Iterates occurrences of an event, page by page (100 rows/page, the API max).
+ *
+ * The API returns rows ordered by id ASCENDING (oldest first) and exposes a
+ * `start_id` cursor: passing start_id=N yields only rows with id > N. The sync
+ * passes the last ingested id as `startId` so an incremental run fetches only
+ * the new occurrences (cheap), and startId=0 (the default) does a full
+ * backfill. NOTE: the rows are NOT ordered most-recent-first — never early-stop
+ * on a watermark comparison here, the new rows live on the LAST pages.
  */
 export async function* iterOccurrences(
   opts: ClientOpts,
-  eventNs: string
+  eventNs: string,
+  startId = 0
 ): AsyncGenerator<MmOccurrence[], void, void> {
   let page = 1;
   while (true) {
     const url = `${opts.base}/flow/custom-events/data?event_ns=${encodeURIComponent(
       eventNs
-    )}&page=${page}`;
+    )}&start_id=${startId}&limit=100&page=${page}`;
     const r = await fetchWithRetry(url, {
       headers: {
         Authorization: `Bearer ${opts.token}`,

@@ -1,5 +1,5 @@
 import { getSupabaseScoped } from "@/lib/supabase/service";
-import { listEvents, iterOccurrences, MmOccurrence } from "./client";
+import { listEvents, iterOccurrences } from "./client";
 import { env } from "@/lib/env";
 import { SCHOOLS, getSchoolToken, type School } from "@/lib/schools";
 
@@ -128,47 +128,34 @@ async function syncEventOccurrences(
 
   let maxIngested = watermark;
 
-  // The MM API returns occurrences ordered most-recent-id first per page,
-  // and pages descend in time. We walk pages, collecting each row whose id
-  // is strictly greater than the watermark. As soon as we hit an id <=
-  // watermark we stop : everything older has already been ingested.
-  // CRITICAL : we must INSERT the items collected before the break, then
-  // exit the outer loop. A direct `break outer` would silently drop the
-  // partial batch.
-  for await (const batch of iterOccurrences({ token, base }, eventNs)) {
-    const fresh: MmOccurrence[] = [];
-    let reachedWatermark = false;
+  // The MM API returns occurrences ordered by id ASCENDING (oldest first) and
+  // filters server-side via the `start_id` cursor: passing start_id=watermark
+  // yields ONLY rows with id > watermark. So every row in every batch is new —
+  // we ingest the whole batch and track the high-water mark. There is no
+  // early-stop : the newest rows are on the LAST pages, not the first.
+  //
+  // Use upsert (not insert) so a transient failure mid-pagination doesn't leave
+  // us unable to resume : a retry re-walks from the same watermark and
+  // ignoreDuplicates makes the re-inserts a no-op on the (school_slug, id) PK.
+  for await (const batch of iterOccurrences({ token, base }, eventNs, watermark)) {
+    if (batch.length === 0) continue;
+    const { error } = await sb.from("mm_occurrences").upsert(
+      batch.map((o) => ({
+        id: o.id,
+        school_slug: schoolSlug,
+        event_ns: o.event_ns,
+        user_ns: o.user_ns,
+        text_value: o.text_value,
+        price_value: parsePriceValue(o.price_value),
+        number_value: o.number_value,
+        occurred_at: o.created_at,
+      })),
+      { onConflict: "school_slug,id", ignoreDuplicates: true }
+    );
+    if (error) throw error;
     for (const occ of batch) {
-      if (occ.id <= watermark) {
-        reachedWatermark = true;
-        break;
-      }
-      fresh.push(occ);
       if (occ.id > maxIngested) maxIngested = occ.id;
     }
-    if (fresh.length > 0) {
-      // Use upsert (not insert) so a transient failure mid-pagination
-      // doesn't leave us unable to resume : retrying re-fetches the same
-      // top-of-page rows, and upsert with ignoreDuplicates makes those
-      // re-inserts a no-op on the (school_slug, id) PK.
-      const { error } = await sb
-        .from("mm_occurrences")
-        .upsert(
-          fresh.map((o) => ({
-            id: o.id,
-            school_slug: schoolSlug,
-            event_ns: o.event_ns,
-            user_ns: o.user_ns,
-            text_value: o.text_value,
-            price_value: parsePriceValue(o.price_value),
-            number_value: o.number_value,
-            occurred_at: o.created_at,
-          })),
-          { onConflict: "school_slug,id", ignoreDuplicates: true }
-        );
-      if (error) throw error;
-    }
-    if (reachedWatermark) break;
   }
 
   if (maxIngested > watermark) {

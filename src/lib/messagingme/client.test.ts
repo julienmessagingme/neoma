@@ -90,13 +90,13 @@ describe("listEvents", () => {
 });
 
 describe("iterOccurrences", () => {
-  it("yields each page until last_page reached", async () => {
+  it("yields each page (ascending ids) until last_page reached", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            data: [{ id: 100 }, { id: 99 }],
+            data: [{ id: 98 }, { id: 99 }],
             meta: { current_page: 1, last_page: 2 },
           }),
           { status: 200 }
@@ -105,7 +105,7 @@ describe("iterOccurrences", () => {
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            data: [{ id: 98 }],
+            data: [{ id: 100 }],
             meta: { current_page: 2, last_page: 2 },
           }),
           { status: 200 }
@@ -121,6 +121,30 @@ describe("iterOccurrences", () => {
     )) {
       for (const r of batch) collected.push((r as { id: number }).id);
     }
-    expect(collected).toEqual([100, 99, 98]);
+    expect(collected).toEqual([98, 99, 100]);
+  });
+
+  it("sends start_id cursor and limit=100", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ data: [], meta: { current_page: 1, last_page: 1 } }),
+        { status: 200 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { iterOccurrences } = await import("./client");
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const _ of iterOccurrences(
+      { token: "t", base: "https://api.test/api" },
+      "ns1",
+      5000
+    )) {
+      // drain
+    }
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    expect(calledUrl).toContain("start_id=5000");
+    expect(calledUrl).toContain("limit=100");
+    expect(calledUrl).toContain("event_ns=ns1");
   });
 });
