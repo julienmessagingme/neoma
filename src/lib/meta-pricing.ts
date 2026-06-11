@@ -43,7 +43,7 @@ const FALLBACK: PhoneCountry = {
  */
 const PHONE_CODES: Record<string, PhoneCountry> = {
   // --- Europe de l'Ouest ---
-  "33": { iso: "FR", name: "France", marketingEur: 0.0791 },
+  "33": { iso: "FR", name: "France", marketingEur: 0.0715 },
   "32": { iso: "BE", name: "Belgique", marketingEur: 0.0742 },
   "31": { iso: "NL", name: "Pays-Bas", marketingEur: 0.0817 },
   "49": { iso: "DE", name: "Allemagne", marketingEur: 0.0786 },
