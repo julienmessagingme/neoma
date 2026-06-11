@@ -73,3 +73,7 @@ NPM : proxy host `neoma.messagingme.app` → `http://neoma-app:3000`, SSL Let's 
 - **UI 100% française** dans les strings affichées.
 - **Export PDF : `html-to-image`, pas `html2canvas`** (Tailwind v4 + `oklch()`).
 - **Logo `/public/logos/neoma.png`** — vrai logo NEOMA Business School (violet sur banderole). Affiché sur la login page et dans le header.
+- **Sync MM = curseur `start_id` ascendant + `limit=100`** (cap dur API, >100 → HTTP 422). Les occurrences arrivent par id CROISSANT : jamais de pagination `page` descendante ni de break précoce sur le watermark (ça gèle le sync après le 1er backfill). Watermark = max id réellement inséré. Cf. `src/lib/messagingme/{client,sync}.ts`. Trou sous le watermark → reset à 0 + resync. (LEARNINGS 2026-06-02 / 06-11.)
+- **Agrégation dashboard : paginer les fetch d'occurrences par `.range()`**, jamais `.limit(N)` seul pour compter. PostgREST plafonne à `max-rows` (1000) : un `.limit(10000)` est tronqué EN SILENCE → un event >1000 s'affiche à 1000 et son coût Meta est sous-évalué. Cf. helper `fetchOccurrenceTextValues` dans `src/app/api/dashboards/[id]/data/route.ts`.
+- **Tarifs Meta WhatsApp dans `src/lib/meta-pricing.ts`** (table par pays, France 7,15 cts au 2026-06). Meta révise ~2×/an, à recontrôler. Même fichier dans edh.
+- **Pie chart = une part par source (volume).** Ne PAS filtrer la palette en mode pie (tout custom event ET clic URL est une part valide). Seul le sélecteur d'event de lancement de campagne filtre sur `has_text_value` (le coût Meta vient des numéros).
