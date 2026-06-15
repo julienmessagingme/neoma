@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-vi.mock("@/lib/supabase/service");
+// `getSupabaseScoped` délègue au même mock que `getSupabase` (cf. by-id.test.ts).
+vi.mock("@/lib/supabase/service", () => {
+  const getSupabase = vi.fn();
+  const getSupabaseScoped = vi.fn(() => getSupabase());
+  return { getSupabase, getSupabaseScoped };
+});
 vi.mock("@/lib/schools/context", () => ({
   getCurrentSchoolSlug: vi.fn().mockResolvedValue("efap"),
   getCurrentSchoolSlugChecked: vi.fn().mockResolvedValue("efap"),
@@ -30,10 +35,17 @@ interface OwnerData {
   date_preset: string;
   date_from: string | null;
   date_to: string | null;
+  /** Tableau lié à une campagne : la visibilité vient alors de la campagne
+   *  (cf. `opts.campaign`), pas de `is_shared`. */
+  campaign_id?: string | null;
+  is_shared?: boolean;
 }
 
 interface MockOpts {
   ownerData: OwnerData | null;
+  /** Ligne `campaigns` résolue quand le tableau est lié (campaign_id non
+   *  null) et que le viewer n'est pas l'auteur. `null` = campagne absente. */
+  campaign?: { created_by: string; is_shared: boolean } | null;
   steps?: Array<{ id: string; position: number; label: string | null }>;
   refs?: Array<{
     id: string;
@@ -67,6 +79,16 @@ function buildSupabaseMock(opts: MockOpts) {
             eq: () => ({
               maybeSingle: () =>
                 Promise.resolve({ data: opts.ownerData, error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === "campaigns") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({ data: opts.campaign ?? null, error: null }),
             }),
           }),
         };
@@ -166,6 +188,62 @@ describe("GET /api/dashboards/[id]/data — multi-refs", () => {
           date_from: null,
           date_to: null,
         },
+      })
+    );
+
+    const { GET } = await import("@/app/api/dashboards/[id]/data/route");
+    const res = await GET(new Request("http://x/api/dashboards/d1/data"), {
+      params: Promise.resolve({ id: "d1" }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  // Régression : /data d'un tableau de campagne PARTAGÉE doit répondre à un
+  // non-auteur (la visibilité est héritée de la campagne). Sinon le builder
+  // afficherait une erreur de données même après avoir chargé le tableau.
+  it("campaign-linked: non-owner gets data when the campaign is shared", async () => {
+    const { getSupabase } = await import("@/lib/supabase/service");
+    (getSupabase as unknown as { mockReturnValue: (v: unknown) => void }).mockReturnValue(
+      buildSupabaseMock({
+        ownerData: {
+          id: "d1",
+          created_by: "OTHER",
+          school_slug: "efap",
+          date_preset: "30d",
+          date_from: null,
+          date_to: null,
+          campaign_id: "c1",
+          is_shared: false,
+        },
+        campaign: { created_by: "OTHER", is_shared: true },
+        steps: [],
+      })
+    );
+
+    const { GET } = await import("@/app/api/dashboards/[id]/data/route");
+    const res = await GET(new Request("http://x/api/dashboards/d1/data"), {
+      params: Promise.resolve({ id: "d1" }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { steps: unknown[] };
+    expect(body.steps).toEqual([]);
+  });
+
+  it("campaign-linked: 404 for non-owner when the campaign is private", async () => {
+    const { getSupabase } = await import("@/lib/supabase/service");
+    (getSupabase as unknown as { mockReturnValue: (v: unknown) => void }).mockReturnValue(
+      buildSupabaseMock({
+        ownerData: {
+          id: "d1",
+          created_by: "OTHER",
+          school_slug: "efap",
+          date_preset: "30d",
+          date_from: null,
+          date_to: null,
+          campaign_id: "c1",
+          is_shared: false,
+        },
+        campaign: { created_by: "OTHER", is_shared: false },
       })
     );
 

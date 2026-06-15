@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/supabase/service");
+// `getSupabaseScoped` délègue au même mock que `getSupabase` : en test on
+// court-circuite le Proxy de scoping (qui n'ajoute qu'un `.eq('school_slug')`
+// invisible au code appelant) et on laisse les mocks ci-dessous fournir les
+// chaînes `.select().eq()...`. Sans ce pont, `getSupabaseScoped()` renvoyait
+// `undefined` (automock) et toutes les routes plantaient sur `sb.from`.
+vi.mock("@/lib/supabase/service", () => {
+  const getSupabase = vi.fn();
+  const getSupabaseScoped = vi.fn(() => getSupabase());
+  return { getSupabase, getSupabaseScoped };
+});
 vi.mock("@/lib/schools/context", () => ({
   getCurrentSchoolSlug: vi.fn().mockResolvedValue("efap"),
   getCurrentSchoolSlugChecked: vi.fn().mockResolvedValue("efap"),
@@ -39,6 +48,20 @@ function ownerOnlyMock(
   };
 }
 
+/** Mock du lookup `users.is_admin` (via getSupabase raw) fait par
+ *  `loadAccessible` une fois la visibilité validée. Les mocks par-table
+ *  custom doivent le fournir, sinon la route plante sur la table `users`. */
+function usersTableMock(isAdmin = false) {
+  return {
+    select: () => ({
+      eq: () => ({
+        maybeSingle: () =>
+          Promise.resolve({ data: { is_admin: isAdmin }, error: null }),
+      }),
+    }),
+  };
+}
+
 describe("GET /api/dashboards/[id]", () => {
   it("404 when not owned by current user", async () => {
     const { getSupabase } = await import("@/lib/supabase/service");
@@ -69,6 +92,7 @@ describe("GET /api/dashboards/[id]", () => {
   it("returns dashboard with steps and their refs grouped", async () => {
     let dashboardsCall = 0;
     const fromImpl = (table: string) => {
+      if (table === "users") return usersTableMock();
       if (table === "dashboards") {
         dashboardsCall += 1;
         // 1st call = ownership probe (maybeSingle)
@@ -191,6 +215,7 @@ describe("GET /api/dashboards/[id]", () => {
   it("returns dashboard with empty steps array when none", async () => {
     let dashboardsCall = 0;
     const fromImpl = (table: string) => {
+      if (table === "users") return usersTableMock();
       if (table === "dashboards") {
         dashboardsCall += 1;
         if (dashboardsCall === 1) {
@@ -255,6 +280,149 @@ describe("GET /api/dashboards/[id]", () => {
     };
     expect(body.dashboard.steps).toEqual([]);
   });
+
+  // Régression : un tableau lié à une campagne PARTAGÉE doit être visible
+  // par un non-auteur. Avant le fix, `loadAccessible` ne regardait que
+  // `dashboards.is_shared` (toujours false pour ces tableaux) → 404 →
+  // le builder redirigeait vers /dashboards (« Mes tableaux »).
+  it("campaign-linked dashboard: visible to non-owner when the campaign is shared", async () => {
+    let dashCall = 0;
+    const fromImpl = (table: string) => {
+      if (table === "users") return usersTableMock(false);
+      if (table === "campaigns") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: { created_by: "OWNER", is_shared: true },
+                  error: null,
+                }),
+            }),
+          }),
+        };
+      }
+      if (table === "dashboards") {
+        dashCall += 1;
+        if (dashCall === 1) {
+          // 1er appel = probe loadAccessible (maybeSingle)
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: () =>
+                  Promise.resolve({
+                    data: {
+                      id: "d1",
+                      created_by: "OWNER",
+                      school_slug: "efap",
+                      is_shared: false,
+                      campaign_id: "c1",
+                    },
+                    error: null,
+                  }),
+              }),
+            }),
+          };
+        }
+        // 2e appel = select complet (single)
+        return {
+          select: () => ({
+            eq: () => ({
+              single: () =>
+                Promise.resolve({
+                  data: {
+                    id: "d1",
+                    school_slug: "efap",
+                    created_by: "OWNER",
+                    name: "Camp",
+                    type: "funnel",
+                    date_preset: "30d",
+                    date_from: null,
+                    date_to: null,
+                    created_at: "x",
+                    updated_at: "y",
+                    campaign_id: "c1",
+                    is_shared: false,
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+        };
+      }
+      if (table === "dashboard_steps") {
+        return {
+          select: () => ({
+            eq: () => ({
+              order: () => Promise.resolve({ data: [], error: null }),
+            }),
+          }),
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    };
+    const { getSupabase } = await import("@/lib/supabase/service");
+    (getSupabase as unknown as { mockReturnValue: (v: unknown) => void }).mockReturnValue(
+      { from: fromImpl }
+    );
+
+    const { GET } = await import("@/app/api/dashboards/[id]/route");
+    const res = await GET(new Request("http://x/api/dashboards/d1"), {
+      params: Promise.resolve({ id: "d1" }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { dashboard: { can_edit: boolean } };
+    // Non-auteur, non-admin → visible mais lecture seule.
+    expect(body.dashboard.can_edit).toBe(false);
+  });
+
+  it("campaign-linked dashboard: 404 for non-owner when the campaign is private", async () => {
+    const fromImpl = (table: string) => {
+      if (table === "campaigns") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: { created_by: "OWNER", is_shared: false },
+                  error: null,
+                }),
+            }),
+          }),
+        };
+      }
+      if (table === "dashboards") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: {
+                    id: "d1",
+                    created_by: "OWNER",
+                    school_slug: "efap",
+                    is_shared: false,
+                    campaign_id: "c1",
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    };
+    const { getSupabase } = await import("@/lib/supabase/service");
+    (getSupabase as unknown as { mockReturnValue: (v: unknown) => void }).mockReturnValue(
+      { from: fromImpl }
+    );
+
+    const { GET } = await import("@/app/api/dashboards/[id]/route");
+    const res = await GET(new Request("http://x/api/dashboards/d1"), {
+      params: Promise.resolve({ id: "d1" }),
+    });
+    expect(res.status).toBe(404);
+  });
 });
 
 describe("PATCH /api/dashboards/[id]", () => {
@@ -301,6 +469,7 @@ describe("PATCH /api/dashboards/[id]", () => {
     const { getSupabase } = await import("@/lib/supabase/service");
     (getSupabase as unknown as { mockReturnValue: (v: unknown) => void }).mockReturnValue({
       from: (table: string) => {
+        if (table === "users") return usersTableMock();
         if (table === "dashboards") {
           return {
             select: () => ({
@@ -344,6 +513,7 @@ describe("PATCH /api/dashboards/[id]", () => {
     const { getSupabase } = await import("@/lib/supabase/service");
     (getSupabase as unknown as { mockReturnValue: (v: unknown) => void }).mockReturnValue({
       from: (table: string) => {
+        if (table === "users") return usersTableMock();
         if (table === "dashboards") {
           return {
             select: () => ({

@@ -75,18 +75,30 @@ export async function GET(
   if (!dash || dash.school_slug !== scope) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
-  // Visibilité : owner OR is_shared OR lié à une campagne (les
-  // tableaux de campagne s'affichent à tous ceux qui voient la
-  // campagne, géré côté campagne). On accepte les 3 cas ici puisque
-  // l'API listing les filtre déjà en amont — c'est un garde-fou.
-  // Note : `is_shared` n'existe que sur les tableaux libres (campaign_id
-  // null) ; pour un tableau de campagne, la visibilité est gérée par
-  // les ACL de la campagne (cf. /campaigns/[id]/campaign-page-client).
+  // Visibilité, alignée sur /api/dashboards/[id] (loadAccessible) :
+  //   - Tableau lié à une campagne → héritée de la CAMPAGNE, jamais du flag
+  //     `dashboards.is_shared` (toujours false pour ces tableaux). On évite
+  //     la requête campagne si le viewer est déjà l'auteur.
+  //   - Tableau libre → son propre is_shared.
+  // (Avant : tout tableau de campagne était lisible par n'importe quel user
+  // de l'école — fuite des compteurs d'une campagne privée.)
   const dashAny = dash as DashboardRow & { is_shared?: boolean };
-  const visible =
-    dashAny.created_by === user.userId ||
-    dashAny.is_shared === true ||
-    dashAny.campaign_id !== null;
+  let visible: boolean;
+  if (dash.campaign_id) {
+    if (dashAny.created_by === user.userId) {
+      visible = true;
+    } else {
+      const { data: camp } = await sb
+        .from("campaigns")
+        .select("created_by, is_shared")
+        .eq("id", dash.campaign_id)
+        .maybeSingle();
+      visible =
+        !!camp && (camp.created_by === user.userId || camp.is_shared === true);
+    }
+  } else {
+    visible = dashAny.created_by === user.userId || dashAny.is_shared === true;
+  }
   if (!visible) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }

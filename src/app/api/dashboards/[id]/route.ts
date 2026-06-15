@@ -51,8 +51,14 @@ const PatchBody = z
 
 /**
  * Charge le dashboard et calcule visible + can_edit.
- *   - visible  : owner OR is_shared
- *   - can_edit : owner OR admin
+ *   - Tableau libre (campaign_id null) :
+ *       visible  = owner OR is_shared ;  can_edit = owner OR admin
+ *   - Tableau lié à une campagne (campaign_id non null) : visibilité ET
+ *     édition héritent de la CAMPAGNE, jamais du flag `dashboards.is_shared`
+ *     (toujours false pour ces tableaux). Cf. migration 013 + ACL de
+ *     /api/campaigns/[id]. Sans ça, le tableau d'une campagne PARTAGÉE
+ *     renvoyait 404 à tout autre que son auteur → le builder redirigeait
+ *     vers /dashboards (« Mes tableaux »).
  * Renvoie null si pas dans la même école que le scope courant ou pas
  * visible. */
 async function loadAccessible(
@@ -69,13 +75,31 @@ async function loadAccessible(
   const sbRaw = getSupabase();
   const { data } = await sb
     .from("dashboards")
-    .select("id, created_by, school_slug, is_shared")
+    .select("id, created_by, school_slug, is_shared, campaign_id")
     .eq("id", id)
     .maybeSingle();
   if (!data) return null;
   if (data.school_slug !== schoolSlug) return null;
-  const visible = data.created_by === userId || data.is_shared === true;
-  if (!visible) return null;
+
+  // L'« owner effectif » qui pilote visibilité + édition : la CAMPAGNE pour
+  // un tableau lié, sinon le tableau lui-même. Pour un tableau de campagne,
+  // `dashboards.is_shared` est ignoré (toujours false) — c'est `campaigns.
+  // is_shared` qui décide (cf. migration 013).
+  let effectiveOwner = data.created_by;
+  if (data.campaign_id) {
+    const { data: camp } = await sb
+      .from("campaigns")
+      .select("created_by, is_shared")
+      .eq("id", data.campaign_id)
+      .maybeSingle();
+    // Campagne absente (ne devrait pas arriver : FK ON DELETE CASCADE)
+    // → tableau inaccessible.
+    if (!camp) return null;
+    if (!(camp.created_by === userId || camp.is_shared === true)) return null;
+    effectiveOwner = camp.created_by;
+  } else {
+    if (!(data.created_by === userId || data.is_shared === true)) return null;
+  }
 
   const { data: meRow } = await sbRaw
     .from("users")
@@ -87,7 +111,7 @@ async function loadAccessible(
     id: data.id,
     created_by: data.created_by,
     is_shared: data.is_shared,
-    can_edit: isAdmin || data.created_by === userId,
+    can_edit: isAdmin || effectiveOwner === userId,
   };
 }
 
