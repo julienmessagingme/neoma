@@ -1,9 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/supabase/service");
+// `getSupabaseScoped` délègue au même mock que `getSupabase` (cf. by-id.test.ts).
+vi.mock("@/lib/supabase/service", () => {
+  const getSupabase = vi.fn();
+  const getSupabaseScoped = vi.fn(() => getSupabase());
+  return { getSupabase, getSupabaseScoped };
+});
 vi.mock("@/lib/schools/context", () => ({
-  getCurrentSchoolSlug: vi.fn().mockResolvedValue("efap"),
-  getCurrentSchoolSlugChecked: vi.fn().mockResolvedValue("efap"),
+  getCurrentSchoolSlug: vi.fn().mockResolvedValue("neoma"),
+  getCurrentSchoolSlugChecked: vi.fn().mockResolvedValue("neoma"),
   SCHOOL_COOKIE_NAME: "edh_school",
 }));
 vi.mock("@/lib/auth/require-user", () => ({
@@ -22,7 +27,7 @@ beforeEach(() => {
   process.env.AUTH_SECRET = "0".repeat(64);
   process.env.INTERNAL_API_KEY = "x";
   process.env.OPENAI_API_KEY = "sk-test";
-  process.env.OPENAI_VS_EFAP = "vs_efap";
+  process.env.OPENAI_VS_NEOMA = "vs_neoma";
 });
 
 describe("DELETE /api/knowledge/items/:id", () => {
@@ -36,7 +41,7 @@ describe("DELETE /api/knowledge/items/:id", () => {
               Promise.resolve({
                 data: {
                   id: "i1",
-                  school_slug: "icart",
+                  school_slug: "other-school",
                   vector_store_file_id: "vsf",
                   openai_file_id: "f1",
                 },
@@ -68,7 +73,7 @@ describe("DELETE /api/knowledge/items/:id", () => {
               Promise.resolve({
                 data: {
                   id: "i1",
-                  school_slug: "efap",
+                  school_slug: "neoma",
                   vector_store_file_id: "vsf",
                   openai_file_id: "f1",
                 },
@@ -91,7 +96,7 @@ describe("DELETE /api/knowledge/items/:id", () => {
     const { deleteFromVectorStore, deleteOpenAIFile } = await import(
       "@/lib/openai-kb"
     );
-    expect(deleteFromVectorStore).toHaveBeenCalledWith("efap", "vsf");
+    expect(deleteFromVectorStore).toHaveBeenCalledWith("neoma", "vsf");
     expect(deleteOpenAIFile).toHaveBeenCalledWith("f1");
   });
 
@@ -113,7 +118,7 @@ describe("DELETE /api/knowledge/items/:id", () => {
               Promise.resolve({
                 data: {
                   id: "i1",
-                  school_slug: "efap",
+                  school_slug: "neoma",
                   vector_store_file_id: "vsf",
                   openai_file_id: "f1",
                 },

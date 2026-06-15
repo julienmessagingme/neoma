@@ -20,19 +20,21 @@ function setRows(rows: { school_slug: string }[]) {
 }
 
 describe("getCurrentUserSchools", () => {
-  it("returns the user's school slugs ordered by SCHOOLS constant", async () => {
+  // Déploiement single-school : seul "neoma" est un slug valide. Toute autre
+  // valeur en DB (héritée d'EDH, école renommée) doit être écartée. Le résultat
+  // suit l'ordre de la constante SCHOOLS, qui ne contient que "neoma".
+  it("returns only the valid neoma slug, filtering foreign rows", async () => {
     const { getSupabase } = await import("@/lib/supabase/service");
     (getSupabase as unknown as { mockReturnValue: (v: unknown) => void }).mockReturnValue(
       setRows([
-        { school_slug: "icart" },
-        { school_slug: "efap" },
-        { school_slug: "3wa" },
+        { school_slug: "other-school" },
+        { school_slug: "neoma" },
+        { school_slug: "another-foreign" },
       ])
     );
     const { getCurrentUserSchools } = await import("@/lib/schools/access");
     const slugs = await getCurrentUserSchools("u1");
-    // Constant order : efap before 3wa before icart
-    expect(slugs).toEqual(["efap", "3wa", "icart"]);
+    expect(slugs).toEqual(["neoma"]);
   });
 
   it("returns empty array when user has no rows", async () => {
@@ -48,12 +50,12 @@ describe("getCurrentUserSchools", () => {
     const { getSupabase } = await import("@/lib/supabase/service");
     (getSupabase as unknown as { mockReturnValue: (v: unknown) => void }).mockReturnValue(
       setRows([
-        { school_slug: "efap" },
+        { school_slug: "neoma" },
         { school_slug: "old-renamed-school" }, // n'existe plus dans SCHOOLS
       ])
     );
     const { getCurrentUserSchools } = await import("@/lib/schools/access");
-    expect(await getCurrentUserSchools("u1")).toEqual(["efap"]);
+    expect(await getCurrentUserSchools("u1")).toEqual(["neoma"]);
   });
 
 });

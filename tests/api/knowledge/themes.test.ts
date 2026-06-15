@@ -1,9 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/supabase/service");
+// `getSupabaseScoped` (utilisé par les routes knowledge) délègue au même mock
+// que `getSupabase` ; sans ce pont, l'automock renvoie `undefined` et la route
+// plante sur `sb.from`.
+vi.mock("@/lib/supabase/service", () => {
+  const getSupabase = vi.fn();
+  const getSupabaseScoped = vi.fn(() => getSupabase());
+  return { getSupabase, getSupabaseScoped };
+});
 vi.mock("@/lib/schools/context", () => ({
-  getCurrentSchoolSlug: vi.fn().mockResolvedValue("efap"),
-  getCurrentSchoolSlugChecked: vi.fn().mockResolvedValue("efap"),
+  getCurrentSchoolSlug: vi.fn().mockResolvedValue("neoma"),
+  getCurrentSchoolSlugChecked: vi.fn().mockResolvedValue("neoma"),
   SCHOOL_COOKIE_NAME: "edh_school",
 }));
 vi.mock("@/lib/auth/require-user", () => ({
@@ -57,7 +64,7 @@ describe("POST /api/knowledge/themes", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(insert).toHaveBeenCalledWith({ school_slug: "efap", name: "Tarifs" });
+    expect(insert).toHaveBeenCalledWith({ school_slug: "neoma", name: "Tarifs" });
   });
 
   it("409 on duplicate (Postgres 23505)", async () => {
@@ -99,7 +106,7 @@ describe("DELETE /api/knowledge/themes/:id", () => {
           eq: () => ({
             maybeSingle: () =>
               Promise.resolve({
-                data: { id: "t1", school_slug: "icart" }, // not 'efap'
+                data: { id: "t1", school_slug: "other-school" }, // not 'neoma'
                 error: null,
               }),
           }),
@@ -125,7 +132,7 @@ describe("DELETE /api/knowledge/themes/:id", () => {
           eq: () => ({
             maybeSingle: () =>
               Promise.resolve({
-                data: { id: "t1", school_slug: "efap" },
+                data: { id: "t1", school_slug: "neoma" },
                 error: null,
               }),
           }),

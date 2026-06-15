@@ -4,19 +4,19 @@ beforeEach(() => {
   vi.resetModules();
   vi.unstubAllGlobals();
   process.env.OPENAI_API_KEY = "sk-test";
-  process.env.OPENAI_VS_EFAP = "vs_efap_test";
-  delete process.env.OPENAI_VS_3WA;
+  process.env.OPENAI_VS_NEOMA = "vs_neoma_test";
 });
 
 describe("getVectorStoreId", () => {
   it("returns the env value when set", async () => {
     const { getVectorStoreId } = await import("./openai-kb");
-    expect(getVectorStoreId("efap")).toBe("vs_efap_test");
+    expect(getVectorStoreId("neoma")).toBe("vs_neoma_test");
   });
 
   it("throws when env var missing", async () => {
+    delete process.env.OPENAI_VS_NEOMA;
     const { getVectorStoreId } = await import("./openai-kb");
-    expect(() => getVectorStoreId("3wa")).toThrow(/Vector store id not configured/);
+    expect(() => getVectorStoreId("neoma")).toThrow(/Vector store id not configured/);
   });
 
   it("throws on unknown school", async () => {
@@ -47,7 +47,7 @@ describe("uploadToVectorStore", () => {
 
     const { uploadToVectorStore } = await import("./openai-kb");
     const r = await uploadToVectorStore(
-      "efap",
+      "neoma",
       Buffer.from("hello"),
       "doc.txt",
       { skipIndexation: true }
@@ -59,7 +59,7 @@ describe("uploadToVectorStore", () => {
 
     // Verify the vector store call was made with the right url + headers.
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.openai.com/v1/vector_stores/vs_efap_test/files",
+      "https://api.openai.com/v1/vector_stores/vs_neoma_test/files",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
@@ -92,7 +92,7 @@ describe("uploadToVectorStore", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { uploadToVectorStore } = await import("./openai-kb");
-    await uploadToVectorStore("efap", Buffer.from("x"), "doc.txt", { skipIndexation: true });
+    await uploadToVectorStore("neoma", Buffer.from("x"), "doc.txt", { skipIndexation: true });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -113,7 +113,7 @@ describe("uploadToVectorStore", () => {
 
     const { uploadToVectorStore } = await import("./openai-kb");
     await expect(
-      uploadToVectorStore("efap", Buffer.from("x"), "doc.txt", { skipIndexation: true })
+      uploadToVectorStore("neoma", Buffer.from("x"), "doc.txt", { skipIndexation: true })
     ).rejects.toThrow(/HTTP 400/);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -131,10 +131,10 @@ describe("deleteFromVectorStore", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { deleteFromVectorStore } = await import("./openai-kb");
-    await deleteFromVectorStore("efap", "vsf-xyz");
+    await deleteFromVectorStore("neoma", "vsf-xyz");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.openai.com/v1/vector_stores/vs_efap_test/files/vsf-xyz",
+      "https://api.openai.com/v1/vector_stores/vs_neoma_test/files/vsf-xyz",
       expect.objectContaining({ method: "DELETE" })
     );
   });

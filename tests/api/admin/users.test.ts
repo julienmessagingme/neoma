@@ -26,52 +26,54 @@ describe("GET /api/admin/users", () => {
     expect(res.status).toBe(403);
   });
 
-  it("returns users with their school accesses", async () => {
+  it("returns only Neoma-scoped users, each annotated schools=['neoma']", async () => {
+    // DB partagée : la route liste d'abord les user_id rattachés à Neoma via
+    // user_school_access, puis charge ces users (in id), et force schools=['neoma'].
     const { getSupabase } = await import("@/lib/supabase/service");
     (getSupabase as unknown as { mockReturnValue: (v: unknown) => void }).mockReturnValue({
       from: (table: string) => {
-        if (table === "users") {
+        if (table === "user_school_access") {
+          // .select("user_id").eq("school_slug", "neoma")
           return {
             select: () => ({
-              order: () =>
+              eq: () =>
                 Promise.resolve({
-                  data: [
-                    {
-                      id: "u1",
-                      email: "a@x",
-                      name: "A",
-                      is_admin: true,
-                      deactivated_at: null,
-                      last_login_at: null,
-                      created_at: "2026-01-01",
-                    },
-                    {
-                      id: "u2",
-                      email: "b@x",
-                      name: "B",
-                      is_admin: false,
-                      deactivated_at: null,
-                      last_login_at: null,
-                      created_at: "2026-01-02",
-                    },
-                  ],
+                  data: [{ user_id: "u1" }, { user_id: "u2" }],
                   error: null,
                 }),
             }),
           };
         }
-        if (table === "user_school_access") {
+        if (table === "users") {
+          // .select(...).in("id", allowedIds).order(...)
           return {
             select: () => ({
-              in: () =>
-                Promise.resolve({
-                  data: [
-                    { user_id: "u1", school_slug: "efap" },
-                    { user_id: "u1", school_slug: "icart" },
-                    { user_id: "u2", school_slug: "efap" },
-                  ],
-                  error: null,
-                }),
+              in: () => ({
+                order: () =>
+                  Promise.resolve({
+                    data: [
+                      {
+                        id: "u1",
+                        email: "a@x",
+                        name: "A",
+                        is_admin: true,
+                        deactivated_at: null,
+                        last_login_at: null,
+                        created_at: "2026-01-01",
+                      },
+                      {
+                        id: "u2",
+                        email: "b@x",
+                        name: "B",
+                        is_admin: false,
+                        deactivated_at: null,
+                        last_login_at: null,
+                        created_at: "2026-01-02",
+                      },
+                    ],
+                    error: null,
+                  }),
+              }),
             }),
           };
         }
@@ -86,8 +88,8 @@ describe("GET /api/admin/users", () => {
       users: Array<{ id: string; schools: string[] }>;
     };
     expect(body.users).toHaveLength(2);
-    expect(body.users[0].schools).toEqual(["efap", "icart"]);
-    expect(body.users[1].schools).toEqual(["efap"]);
+    expect(body.users[0].schools).toEqual(["neoma"]);
+    expect(body.users[1].schools).toEqual(["neoma"]);
   });
 });
 
@@ -136,7 +138,9 @@ describe("POST /api/admin/users", () => {
           name: "Newcomer",
           password: "supersecret",
           is_admin: false,
-          schools: ["efap", "icart"],
+          // 'icart' n'est plus un slug valide en single-school : filtré par
+          // isValidSchoolSlug. Seul 'neoma' subsiste dans l'insert d'accès.
+          schools: ["neoma", "icart"],
         }),
       })
     );
@@ -148,7 +152,7 @@ describe("POST /api/admin/users", () => {
     expect(userArg.password_hash).toMatch(/^\$2[aby]\$/);
     expect(accessInsert).toHaveBeenCalled();
     const rows = accessInsert.mock.calls[0][0] as Array<{ school_slug: string }>;
-    expect(rows.map((r) => r.school_slug).sort()).toEqual(["efap", "icart"]);
+    expect(rows.map((r) => r.school_slug).sort()).toEqual(["neoma"]);
   });
 
   it("409 on duplicate email (Postgres 23505)", async () => {
@@ -197,33 +201,42 @@ describe("DELETE /api/admin/users/[id]", () => {
     const { getSupabase } = await import("@/lib/supabase/service");
     (getSupabase as unknown as { mockReturnValue: (v: unknown) => void }).mockReturnValue({
       from: (table: string) => {
-        if (table === "users") {
-          // Both the lookup and the count(*) admins go through users.
+        if (table === "user_school_access") {
+          // Deux usages : isNeomaUser (.eq().eq().maybeSingle()) et
+          // countOtherActiveAdmins (.eq() seul → liste des user_id Neoma).
+          // On renvoie un objet qui supporte les deux chaînes. La liste ne
+          // contient QUE la cible → après exclusion, plus aucun autre admin.
           return {
-            select: (_cols: string, opts?: { count?: string; head?: boolean }) => {
-              if (opts?.count === "exact" && opts.head) {
-                return {
-                  eq: () => ({
-                    is: () => ({
-                      neq: () => Promise.resolve({ count: 0, error: null }),
-                    }),
-                  }),
-                };
-              }
-              return {
+            select: () => ({
+              eq: () => ({
+                // isNeomaUser : 2e .eq() puis .maybeSingle()
                 eq: () => ({
                   maybeSingle: () =>
-                    Promise.resolve({
-                      data: {
-                        id: "target",
-                        is_admin: true,
-                        deactivated_at: null,
-                      },
-                      error: null,
-                    }),
+                    Promise.resolve({ data: { user_id: "target" }, error: null }),
                 }),
-              };
-            },
+                // countOtherActiveAdmins : .eq("school_slug") thenable
+                then: (resolve: (v: unknown) => void) =>
+                  resolve({ data: [{ user_id: "target" }], error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === "users") {
+          // Lookup target (.eq().maybeSingle()) → admin actif.
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: () =>
+                  Promise.resolve({
+                    data: {
+                      id: "target",
+                      is_admin: true,
+                      deactivated_at: null,
+                    },
+                    error: null,
+                  }),
+              }),
+            }),
           };
         }
         throw new Error(`Unexpected: ${table}`);
@@ -243,18 +256,34 @@ describe("DELETE /api/admin/users/[id]", () => {
     });
     const { getSupabase } = await import("@/lib/supabase/service");
     (getSupabase as unknown as { mockReturnValue: (v: unknown) => void }).mockReturnValue({
-      from: () => ({
-        select: () => ({
-          eq: () => ({
-            maybeSingle: () =>
-              Promise.resolve({
-                data: { id: "u2", is_admin: false, deactivated_at: null },
-                error: null,
+      from: (table: string) => {
+        if (table === "user_school_access") {
+          // isNeomaUser : la cible est bien rattachée à Neoma.
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: () =>
+                    Promise.resolve({ data: { user_id: "u2" }, error: null }),
+                }),
               }),
+            }),
+          };
+        }
+        // users : lookup cible (non-admin) + update soft-delete.
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: { id: "u2", is_admin: false, deactivated_at: null },
+                  error: null,
+                }),
+            }),
           }),
-        }),
-        update,
-      }),
+          update,
+        };
+      },
     });
 
     const { DELETE } = await import("@/app/api/admin/users/[id]/route");

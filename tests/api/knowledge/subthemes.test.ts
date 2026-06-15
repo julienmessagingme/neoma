@@ -1,9 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/supabase/service");
+// `getSupabaseScoped` délègue au même mock que `getSupabase` (cf. by-id.test.ts).
+vi.mock("@/lib/supabase/service", () => {
+  const getSupabase = vi.fn();
+  const getSupabaseScoped = vi.fn(() => getSupabase());
+  return { getSupabase, getSupabaseScoped };
+});
 vi.mock("@/lib/schools/context", () => ({
-  getCurrentSchoolSlug: vi.fn().mockResolvedValue("efap"),
-  getCurrentSchoolSlugChecked: vi.fn().mockResolvedValue("efap"),
+  getCurrentSchoolSlug: vi.fn().mockResolvedValue("neoma"),
+  getCurrentSchoolSlugChecked: vi.fn().mockResolvedValue("neoma"),
   SCHOOL_COOKIE_NAME: "edh_school",
 }));
 vi.mock("@/lib/auth/require-user", () => ({
@@ -30,7 +35,7 @@ describe("POST /api/knowledge/subthemes", () => {
               eq: () => ({
                 maybeSingle: () =>
                   Promise.resolve({
-                    data: { school_slug: "icart" },
+                    data: { school_slug: "other-school" },
                     error: null,
                   }),
               }),
@@ -80,7 +85,7 @@ describe("POST /api/knowledge/subthemes", () => {
     );
     expect(res.status).toBe(200);
     expect(insert).toHaveBeenCalledWith({
-      school_slug: "efap",
+      school_slug: "neoma",
       name: "Sub",
       theme_id: null,
     });

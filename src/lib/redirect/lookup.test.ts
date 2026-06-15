@@ -1,8 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/supabase/service", () => ({
-  getSupabase: vi.fn(),
-}));
+// `getSupabaseScoped` délègue au même mock que `getSupabase` : `lookupSlug`
+// passe par `getSupabaseScoped(DEFAULT_SCHOOL_SLUG)`. Sans ce pont, l'automock
+// renverrait `undefined` et la route planterait sur `sb.from`.
+vi.mock("@/lib/supabase/service", () => {
+  const getSupabase = vi.fn();
+  const getSupabaseScoped = vi.fn(() => getSupabase());
+  return { getSupabase, getSupabaseScoped };
+});
 
 beforeEach(() => {
   vi.resetModules();
@@ -42,7 +47,7 @@ describe("lookupSlug", () => {
                 is: () => ({
                   maybeSingle: () =>
                     Promise.resolve({
-                      data: { id: "e1", slug: "abc", school_slug: "efap" },
+                      data: { id: "e1", slug: "abc", school_slug: "neoma" },
                       error: null,
                     }),
                 }),
@@ -70,6 +75,6 @@ describe("lookupSlug", () => {
     const r = await lookupSlug("abc");
     expect(r?.destinationUrl).toBe("https://x.test/p");
     expect(r?.eventId).toBe("e1");
-    expect(r?.schoolSlug).toBe("efap");
+    expect(r?.schoolSlug).toBe("neoma");
   });
 });

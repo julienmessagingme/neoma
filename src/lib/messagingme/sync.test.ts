@@ -116,7 +116,13 @@ describe("syncSchool watermark", () => {
 
     const { syncSchool } = await import("./sync");
     await syncSchool(
-      { slug: "efap", name: "EFAP", tokenEnv: "MM_TOKEN_EFAP" },
+      {
+        slug: "neoma",
+        name: "Neoma",
+        tokenEnv: "MM_TOKEN_NEOMA",
+        vectorStoreEnv: "OPENAI_VS_NEOMA",
+        logo: "/logos/neoma.png",
+      },
       "tok"
     );
 
