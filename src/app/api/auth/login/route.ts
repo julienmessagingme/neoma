@@ -3,8 +3,22 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { getSupabase } from "@/lib/supabase/service";
 import { signSession, SESSION_COOKIE_NAME, SESSION_COOKIE_TTL } from "@/lib/auth/session";
+import { getClientIp } from "@/lib/redirect/client-ip";
+import {
+  checkLoginRate,
+  LOGIN_MAX_PER_IP,
+  LOGIN_MAX_PER_EMAIL,
+} from "@/lib/auth/login-rate-limit";
 
 export const runtime = "nodejs";
+
+// Fresh response per call — a NextResponse body is a one-shot stream, so we
+// can't share a single module-level instance across requests.
+const rateLimited = () =>
+  NextResponse.json(
+    { error: "trop de tentatives, réessayez dans quelques minutes" },
+    { status: 429 }
+  );
 
 // Pre-computed bcrypt hash used as a decoy when the email is not found,
 // so the response time is constant whether or not the email exists.
@@ -16,11 +30,18 @@ const Body = z.object({
 });
 
 export async function POST(req: Request) {
+  // Anti-brute-force : limite par IP (large, tolère un NAT partagé) avant même
+  // de parser le body, pour borner un flood. Limite par email (stricte) ensuite.
+  const ip = getClientIp(req) ?? "unknown";
+  if (!checkLoginRate(`ip:${ip}`, LOGIN_MAX_PER_IP)) return rateLimited();
+
   const json = await req.json().catch(() => null);
   const parsed = Body.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: "invalid body" }, { status: 400 });
 
   const { email, password } = parsed.data;
+  if (!checkLoginRate(`email:${email.toLowerCase()}`, LOGIN_MAX_PER_EMAIL))
+    return rateLimited();
   const sb = getSupabase();
   const { data: user, error } = await sb
     .from("users")
