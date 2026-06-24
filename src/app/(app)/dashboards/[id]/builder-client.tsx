@@ -244,6 +244,9 @@ export function BuilderClient({
     try {
       const r = await fetch(`/api/dashboards/${dashboardId}/data`, {
         signal: ctrl.signal,
+        // no-store : la date est côté serveur (même URL) -> sans ça le navigateur
+        // peut resservir une réponse en cache et le graphe ne se met pas à jour.
+        cache: "no-store",
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j = (await r.json()) as ComputedDashboardData;
