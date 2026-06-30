@@ -586,6 +586,9 @@ export function BuilderClient({
   function stepDisplayLabel(s: DashboardStep): string {
     if (s.label && s.label.trim()) return s.label;
     if (s.refs.length === 0) return "(vide)";
+    // ≥2 sources sans nom custom : « Cumul de N sources », identique au
+    // tableau (compactStepLabel) → l'utilisateur sait qu'il peut renommer ici.
+    if (s.refs.length >= 2) return `Cumul de ${s.refs.length} sources`;
     return s.refs.map((r) => resolveRef(r).label).join(" + ");
   }
 
@@ -681,6 +684,34 @@ export function BuilderClient({
       ),
     };
   }
+  // Une brique déjà posée dans une étape disparaît de la palette : on ne
+  // peut l'utiliser qu'une seule fois dans le tableau. Le set est recalculé
+  // à chaque rendu depuis l'état des étapes → retirer une brique d'une étape
+  // la fait réapparaître dans la palette. La clé est le même `ref_id` que
+  // côté palette : `school:event_ns` en EDH, sinon `event_ns`, ou l'uuid du
+  // redirect pour les clics URL.
+  const usedRefIds = new Set<string>();
+  for (const s of dashboard.steps) {
+    for (const r of s.refs) {
+      if (r.step_type === "mm_event") {
+        usedRefIds.add(
+          r.event_school_slug
+            ? `${r.event_school_slug}:${r.event_ns}`
+            : r.event_ns!
+        );
+      } else if (r.redirect_event_id) {
+        usedRefIds.add(r.redirect_event_id);
+      }
+    }
+  }
+  displayedPalette = {
+    mmEvents: displayedPalette.mmEvents.filter(
+      (p) => !usedRefIds.has(p.ref_id)
+    ),
+    redirectEvents: displayedPalette.redirectEvents.filter(
+      (p) => !usedRefIds.has(p.ref_id)
+    ),
+  };
 
   return (
     <DndContext
@@ -1531,6 +1562,7 @@ function SortableStepGroup({
           onChange={(e) => onLabelChange(e.target.value)}
           placeholder={placeholder}
           disabled={readOnly}
+          title="Nom de l'étape affiché dans le tableau (laissez vide pour le nom automatique)"
           className="flex-1 h-8 text-sm bg-white"
         />
         <span className="text-xs text-zinc-400 w-12 text-right">{typeBadge}</span>
