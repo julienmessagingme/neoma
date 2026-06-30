@@ -47,8 +47,8 @@ export function MetaCostBreakdownDialog({
   const totalCount = breakdown.reduce((acc, b) => acc + b.count, 0);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
@@ -58,62 +58,52 @@ export function MetaCostBreakdownDialog({
             avec un numéro reconnu sur la période).
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-left text-xs uppercase text-zinc-500 border-b">
-                <tr>
-                  <th className="py-2 pr-4">Pays</th>
-                  <th className="py-2 pr-4 text-right">Envois</th>
-                  <th className="py-2 pr-4 text-right">Tarif</th>
-                  <th className="py-2 pr-4 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {breakdown.map((b) => (
-                  <tr key={b.iso} className="border-b">
-                    <td className="py-1.5 pr-4">
-                      <span className="text-[10px] font-mono mr-2 text-zinc-400">
-                        {b.iso}
-                      </span>
-                      {b.name}
-                    </td>
-                    <td className="py-1.5 pr-4 text-right tabular-nums">
-                      {b.count}
-                    </td>
-                    <td className="py-1.5 pr-4 text-right tabular-nums text-zinc-600">
-                      {fmtRate(b.rate_eur)}
-                    </td>
-                    <td className="py-1.5 pr-4 text-right tabular-nums">
-                      {fmtEur(b.total_eur)}
-                    </td>
+          <>
+            {/* Seule la liste des pays scrolle ; l'en-tête de colonnes est
+                collant et le total + la note restent figés en pied. */}
+            <div className="flex-1 overflow-auto -mx-1 px-1">
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs uppercase text-zinc-500 border-b sticky top-0 bg-popover">
+                  <tr>
+                    <th className="py-2 pr-4">Pays</th>
+                    <th className="py-2 pr-4 text-right">Envois</th>
+                    <th className="py-2 pr-4 text-right">Tarif</th>
+                    <th className="py-2 pr-4 text-right">Total</th>
                   </tr>
-                ))}
-                <tr className="font-semibold border-t-2 border-zinc-300">
-                  <td className="py-2 pr-4">Total</td>
-                  <td className="py-2 pr-4 text-right tabular-nums">
-                    {totalCount}
-                  </td>
-                  <td className="py-2 pr-4" />
-                  <td className="py-2 pr-4 text-right tabular-nums">
-                    {fmtEur(total)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <p className="text-xs text-zinc-500 mt-3">
-              Tarifs Meta WhatsApp catégorie « Marketing » en EUR. Source :
-              <a
-                href="https://developers.facebook.com/docs/whatsapp/pricing"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline ml-1"
-              >
-                doc Meta
-              </a>
-              . Indicatifs inconnus regroupés sous « Autre / non reconnu »
-              (tarif fallback 0,05 €).
+                </thead>
+                <tbody>
+                  {breakdown.map((b) => (
+                    <tr key={b.iso} className="border-b">
+                      <td className="py-1.5 pr-4">
+                        <span className="text-[10px] font-mono mr-2 text-zinc-400">
+                          {b.iso}
+                        </span>
+                        {b.name}
+                      </td>
+                      <td className="py-1.5 pr-4 text-right tabular-nums">
+                        {b.count}
+                      </td>
+                      <td className="py-1.5 pr-4 text-right tabular-nums text-zinc-600">
+                        {fmtRate(b.rate_eur)}
+                      </td>
+                      <td className="py-1.5 pr-4 text-right tabular-nums">
+                        {fmtEur(b.total_eur)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="shrink-0 mt-2 pt-2 border-t-2 border-zinc-300 flex items-center justify-between text-sm font-semibold">
+              <span>Total · {totalCount} envois</span>
+              <span className="tabular-nums">{fmtEur(total)}</span>
+            </div>
+            <p className="shrink-0 text-xs text-zinc-500 mt-2">
+              Tarifs Meta WhatsApp catégorie « Marketing » en EUR (tarifs
+              officiels Meta). Indicatifs inconnus regroupés sous « Autre /
+              non reconnu » (fallback 0,05 €).
             </p>
-          </div>
+          </>
         )}
       </DialogContent>
     </Dialog>
